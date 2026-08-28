@@ -1,0 +1,185 @@
+/* assets/css/login.css - Diseño Corporativo Sodimac */
+
+/* Fondo con gradiente corporativo (azul Sodimac) */
+body {
+    background: linear-gradient(135deg, #0054A6 0%, #003d7a 100%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Tarjeta principal */
+.login-card {
+    border: none;
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Barra superior decorativa con colores Sodimac */
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #E30613 0%, #FFC107 50%, #0054A6 100%);
+}
+
+/* Título del sistema - en azul corporativo */
+.system-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #0054A6;
+    margin-bottom: 1rem;
+    position: relative;
+    display: inline-block;
+}
+
+/* Línea decorativa debajo del título en rojo Sodimac */
+.system-title::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    background: #E30613;
+    border-radius: 2px;
+}
+
+/* Logo más pequeño y centrado */
+.logo-container {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+}
+.logo-container img {
+    max-width: 120px;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+    transition: transform 0.3s ease;
+}
+.logo-container img:hover {
+    transform: scale(1.05);
+}
+
+/* Título "Iniciar Sesión" */
+.login-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #333333;
+    margin-bottom: 2rem;
+    text-align: center;
+    letter-spacing: -0.5px;
+}
+
+/* Labels */
+.form-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #0054A6;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+}
+
+/* Inputs modernos con colores corporativos */
+.input-group-text {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-right: none;
+    border-color: #dee2e6;
+    color: #0054A6;
+    transition: all 0.3s ease;
+}
+.form-control-modern {
+    border-left: none;
+    border-color: #dee2e6;
+    background-color: #f8f9fa;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+}
+.form-control-modern:focus {
+    background-color: #ffffff;
+    box-shadow: none;
+    border-color: #0054A6;
+}
+.input-group:focus-within .input-group-text {
+    background: #0054A6;
+    color: white;
+    border-color: #0054A6;
+}
+.input-group:focus-within .form-control-modern {
+    border-color: #0054A6;
+}
+
+/* Botón con gradiente rojo Sodimac */
+.btn-login {
+    background: linear-gradient(135deg, #E30613 0%, #c00510 100%);
+    border: none;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 1rem;
+    font-size: 1rem;
+    color: white;
+    box-shadow: 0 4px 15px rgba(227, 6, 19, 0.4);
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+}
+.btn-login:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(227, 6, 19, 0.6);
+    background: linear-gradient(135deg, #c00510 0%, #E30613 100%);
+}
+.btn-login:active {
+    transform: translateY(-1px);
+}
+
+/* Footer corporativo */
+.login-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+.login-footer small {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+.login-footer strong {
+    color: #E30613;
+    font-weight: 700;
+}
+
+/* Animación de entrada */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.login-card {
+    animation: slideUp 0.6s ease-out;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .login-card {
+        margin: 1rem;
+    }
+    .logo-container img {
+        max-width: 100px;
+    }
+}

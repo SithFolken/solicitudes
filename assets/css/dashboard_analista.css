@@ -1,0 +1,177 @@
+/* assets/css/dashboard_analista.css */
+/* Estilos ESPECÍFICOS del Dashboard del Analista */
+
+/* ==========================================
+   TARJETAS KPI - Gradientes
+   ========================================== */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.bg-gradient-info {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+/* Efecto hover en KPIs */
+.card-kpi {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-kpi:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12) !important;
+}
+
+.card-kpi .icon {
+    font-size: 2.5rem;
+    opacity: 0.3;
+}
+
+/* ==========================================
+   CONTENEDORES DE GRÁFICOS
+   ========================================== */
+.chart-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.chart-container h5 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+/* ==========================================
+   ACCIONES RÁPIDAS
+   ========================================== */
+.quick-actions {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.btn-action {
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ==========================================
+   HEADER DE PÁGINA
+   ========================================== */
+.page-header {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+/* ==========================================
+   LOADING OVERLAY
+   ========================================== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.9);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==========================================
+   CORRECCIONES HIGHCHARTS - VERSIÓN LIMPIA
+   ========================================== */
+
+/* Forzar barras gruesas y visibles */
+.highcharts-column-series .highcharts-point,
+.highcharts-series rect {
+    stroke: none !important;
+    stroke-width: 0 !important;
+    fill-opacity: 1 !important;
+}
+
+/* Labels de ejes */
+.highcharts-xaxis-labels text,
+.highcharts-yaxis-labels text {
+    fill: #495057 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+}
+
+/* Labels de datos (valores sobre barras) */
+.highcharts-data-label text {
+    fill: #2c3e50 !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+}
+
+/* Títulos */
+.highcharts-title text,
+.highcharts-subtitle text {
+    fill: #2c3e50 !important;
+}
+
+/* Tooltip */
+.highcharts-tooltip text {
+    fill: #2c3e50 !important;
+    font-size: 13px !important;
+}
+
+/* Botón drill-up */
+.highcharts-drillup-button rect {
+    fill: #667eea !important;
+    stroke: none !important;
+    rx: 20 !important;
+}
+
+.highcharts-drillup-button text {
+    fill: white !important;
+    font-weight: bold !important;
+    font-size: 13px !important;
+}
+
+.highcharts-drillup-button:hover rect {
+    fill: #764ba2 !important;
+}
+
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
+@media (max-width: 768px) {
+    .chart-container {
+        padding: 15px;
+    }
+    
+    .chart-container h5 {
+        font-size: 14px;
+    }
+}

@@ -1,0 +1,245 @@
+/* assets/css/procesar_carga.css */
+
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.sidebar {
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #333;
+    padding: 0.75rem 1rem;
+}
+
+.sidebar .nav-link:hover {
+    color: #198754;
+    background-color: #f8f9fa;
+}
+
+.sidebar .nav-link.active {
+    color: #198754;
+    background-color: #e9ecef;
+}
+
+main {
+    margin-left: 0;
+}
+
+@media (min-width: 768px) {
+    main {
+        margin-left: 16.666667%;
+    }
+}
+
+.card {
+    border-radius: 0.5rem;
+}
+
+/* ==========================================
+   TABLA DE SKUs - ESTILOS PROFESIONALES
+   ========================================== */
+
+#tablaSKUs {
+    font-size: 0.8rem;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Encabezados de la tabla */
+#tablaSKUs th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: center;
+    border: 1px solid #dee2e6 !important;
+    padding: 10px 6px;
+}
+
+#tablaSKUs td {
+    vertical-align: middle;
+    border: 1px solid #e9ecef;
+    padding: 8px 6px;
+    text-align: center;
+}
+
+/* Colores de encabezados por sección */
+.bg-parametros {
+    background-color: #0dcaf0 !important; /* Cyan profesional */
+    color: #000000 !important;
+    font-weight: 700;
+}
+
+.bg-inventario {
+    background-color: #ffc107 !important; /* Amarillo suave */
+    color: #212529 !important; /* Texto oscuro para contraste */
+    font-weight: 700;
+}
+
+.bg-sds {
+    background-color: #198754 !important; /* Verde profesional */
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+/* ==========================================
+   INDICADORES DE ESTADO (SDS)
+   ========================================== */
+
+.sds-critico {
+    color: #dc3545 !important; /* Rojo: < 2 semanas */
+    font-weight: 800;
+}
+
+.sds-alerta {
+    color: #fd7e14 !important; /* Naranja: 2 a 8 semanas */
+    font-weight: 800;
+}
+
+.sds-normal {
+    color: #198754 !important; /* Verde: 8 a 12 semanas */
+    font-weight: 800;
+}
+
+.sds-excesivo {
+    color: #0d6efd !important; /* Azul: > 12 semanas (SDS + Carga) */
+    font-weight: 800;
+}
+
+/* ==========================================
+   CELDAS DE PARÁMETROS E INVENTARIO
+   ========================================== */
+
+.parametro {
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.parametro-positivo {
+    background-color: #d1e7dd !important;
+    color: #0f5132 !important;
+}
+
+.parametro-negativo {
+    background-color: #f8d7da !important;
+    color: #842029 !important;
+}
+
+.parametro-info {
+    background-color: #cff4fc !important;
+    color: #055160 !important;
+}
+
+.parametro-neutro {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+}
+
+/* ==========================================
+   CAMPOS DE ENTRADA Y EDICIÓN
+   ========================================== */
+
+/* Campos readonly */
+#tablaSKUs .campo-readonly {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    border: none;
+    font-weight: 500;
+    text-align: center;
+}
+
+/* Campos editables (Cantidad Final) */
+#tablaSKUs .campo-editable {
+    border: 2px solid #198754;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 70px;
+    font-size: 0.85rem;
+}
+
+#tablaSKUs .campo-editable:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Select de MD */
+#tablaSKUs .select-md {
+    min-width: 120px;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+}
+
+/* Textarea de motivo */
+#tablaSKUs .motivo-cambio {
+    font-size: 0.75rem;
+    border: 1px solid #ffc107;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    resize: none;
+    min-height: 38px;
+}
+
+/* ==========================================
+   ESTADOS DE FILA (CAMBIOS / NO CARGAR)
+   ========================================== */
+
+/* Fila con cambios marcados */
+#tablaSKUs tr.fila-con-cambios {
+    background-color: #fff3cd !important;
+}
+
+#tablaSKUs tr.fila-con-cambios td {
+    border-color: #ffe69c;
+}
+
+/* Fila con "No Cargar" marcado */
+#tablaSKUs tr.fila-no-cargar {
+    background-color: #f8d7da !important;
+    opacity: 0.8;
+}
+
+#tablaSKUs tr.fila-no-cargar td {
+    border-color: #f1aeb5;
+}
+
+#tablaSKUs tr.fila-no-cargar input,
+#tablaSKUs tr.fila-no-cargar select {
+    background-color: #e9ecef;
+    opacity: 0.6;
+}
+
+/* Checkbox de No Cargar */
+.check-no-cargar {
+    width: 1.3rem;
+    height: 1.3rem;
+    cursor: pointer;
+    accent-color: #dc3545;
+}
+
+/* ==========================================
+   UTILIDADES DE TEXTO
+   ========================================== */
+
+.text-primary { color: #0d6efd !important; }
+.text-danger { color: #dc3545 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-success { color: #198754 !important; }
+.text-muted { color: #6c757d !important; }
