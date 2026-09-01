@@ -56,7 +56,7 @@ $nombre_tienda = htmlspecialchars($_SESSION['nombre'] ?? 'Tienda');
                         </li>
                         <li class="nav-item">
                             <a class="nav-link active" href="mis_solicitudes.php">
-                                <i class="bi bi-clipboard-list me-2"></i> Mis Solicitudes
+                                <i class="bi bi-card-checklist me-2"></i> Mis Solicitudes
                             </a>
                         </li>
                     </ul>

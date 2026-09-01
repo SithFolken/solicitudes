@@ -41,7 +41,7 @@ $titulo_pagina = $id_edicion > 0 ? "Editar Solicitud #$id_edicion" : "Nueva Soli
 
     <nav class="navbar navbar-dark bg-primary mb-4">
         <div class="container-fluid">
-            <a class="navbar-brand" href="dashboard.php"><i class="bi bi-arrow-left"></i> Volver al Panel</a>
+            <a class="navbar-brand" href="dashboard_tienda.php"><i class="bi bi-arrow-left"></i> Volver al Panel</a>
             <span class="text-white">Tienda: <?= $nombre_tienda ?></span>
         </div>
     </nav>
@@ -51,7 +51,7 @@ $titulo_pagina = $id_edicion > 0 ? "Editar Solicitud #$id_edicion" : "Nueva Soli
             <nav class="col-md-2 d-none d-md-block bg-light sidebar">
                 <div class="position-sticky pt-3">
                     <ul class="nav flex-column">
-                        <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="dashboard_tienda.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a></li>
                         <li class="nav-item"><a class="nav-link active" href="solicitar_carga.php"><i class="bi bi-cart-plus me-2"></i> Solicitar Carga</a></li>
                         <li class="nav-item"><a class="nav-link" href="mis_solicitudes.php"><i class="bi bi-clipboard-list me-2"></i> Mis Solicitudes</a></li>
                     </ul>

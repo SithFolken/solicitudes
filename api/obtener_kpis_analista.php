@@ -59,11 +59,11 @@ try {
 
     // Gráfico 4: Top 5 Tiendas (CORREGIDO: Mostrar ID de tienda)
     $stmt = $pdo->query("SELECT id_tienda, COUNT(*) as total 
-                         FROM Analisis_Procesos.solicitudes 
-                         WHERE estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
-                         GROUP BY id_tienda
-                         ORDER BY total DESC
-                         LIMIT 5");
+                        FROM Analisis_Procesos.solicitudes 
+                        WHERE id_tienda IS NOT NULL AND id_tienda > 0
+                        GROUP BY id_tienda
+                        ORDER BY total DESC
+                        LIMIT 10");
     $topTiendas = $stmt->fetchAll();
 
         // ✅ Gráfico 5: Top 10 SKUs Más Solicitados (con drill-down por tienda)

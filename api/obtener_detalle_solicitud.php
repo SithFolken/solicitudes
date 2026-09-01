@@ -88,6 +88,7 @@ try {
                 INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
                 LEFT JOIN rct.sugerido_diario sd ON sc.sku = sd.sku AND s.id_tienda = sd.id_tienda
                 WHERE sc.id_solicitud = :id_solicitud
+                  AND sc.estado_item != 'RECHAZADO'
                 ORDER BY sc.id_detalle";
     
     $stmt_skus = $pdo->prepare($sql_skus);

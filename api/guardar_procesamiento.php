@@ -52,7 +52,7 @@ try {
                        SET carga_final = :cantidad_final,
                            md = :md,
                            estado_item = :estado_item,
-                           motivo = :motivo,
+                            campo_cambios = :motivo,
                            campo_cambios = CONCAT(COALESCE(campo_cambios, ''), ' - Modificado por analista el ', NOW())
                        WHERE id_detalle = :id_detalle";
         
@@ -94,21 +94,19 @@ try {
         
         $mensaje = "Solicitud #$id_solicitud procesada. Estado: $estado_general ($skus_aprobados aprobados, $skus_rechazados rechazados)";
     } else {
-        // Modo: SOLO GUARDAR (mantener en PENDIENTE)
+        // Modo: SOLO GUARDAR (sin cambiar estado)
         $sql_padre = "UPDATE Analisis_Procesos.solicitudes 
-                      SET fecha_modificacion = NOW(),
-                          usuario_modifico = :usuario
-                      WHERE id_solicitud = :id_solicitud";
+                    SET fecha_modificacion = NOW()
+                    WHERE id_solicitud = :id_solicitud";
         
         $stmt_padre = $pdo->prepare($sql_padre);
         $stmt_padre->execute([
-            'usuario' => $_SESSION['user_id'],
             'id_solicitud' => $id_solicitud
         ]);
         
-        $mensaje = "Cambios guardados correctamente. $skus_aprobados aprobados, $skus_rechazados rechazados. La solicitud permanece en estado PENDIENTE.";
+        $mensaje = "Cambios guardados. $skus_aprobados aprobados, $skus_rechazados rechazados. La solicitud permanece en estado PENDIENTE/EN_PROCESO.";
     }
-    
+        
     $pdo->commit();
     
     echo json_encode([
