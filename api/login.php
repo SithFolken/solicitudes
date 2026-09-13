@@ -85,10 +85,26 @@ try {
                 $password_input === $tienda['pass_usuario']) {
                 
                 $rol = 'tienda';
+                
+                // ✅ NUEVO: Obtener el nombre REAL de la tienda desde sugerido_diario
+                $nombre_tienda_real = "Tienda ID: " . $tienda['id_tienda']; // Valor por defecto
+                try {
+                    $stmt_nombre = $pdo->prepare("SELECT nombre_tienda FROM rct.sugerido_diario WHERE id_tienda = :id_tienda LIMIT 1");
+                    $stmt_nombre->execute(['id_tienda' => $tienda['id_tienda']]);
+                    $res_nombre = $stmt_nombre->fetch(PDO::FETCH_ASSOC);
+                    if ($res_nombre && !empty($res_nombre['nombre_tienda'])) {
+                        $nombre_tienda_real = $res_nombre['nombre_tienda'];
+                    }
+                } catch (Exception $e) {
+                    error_log("Error obteniendo nombre de tienda: " . $e->getMessage());
+                    // Si falla, se queda con el valor por defecto
+                }
+
                 $user_data = [
                     'id' => $tienda['id_usuario'],
                     'id_tienda' => $tienda['id_tienda'],
-                    'nombre' => $tienda['nombre_usuario'],
+                    'nombre_usuario' => $tienda['nombre_usuario'], // Ej: Angel Perez
+                    'nombre_tienda' => $nombre_tienda_real,        // Ej: SHC CERRILLOS
                     'tipo_comprador' => $tienda['tipo_comprador']
                 ];
             }
@@ -96,18 +112,22 @@ try {
     }
 
     // ==========================================
-    // 3. Respuesta final
+    // 3. Respuesta final y guardado en sesión
     // ==========================================
     if ($rol && $user_data) {
         // Guardar en sesión
         $_SESSION['user_id'] = $user_data['id'];
-        $_SESSION['nombre']  = $user_data['nombre'];
         $_SESSION['rol']     = $rol;
         
         if ($rol === 'analista') {
+            $_SESSION['nombre'] = $user_data['nombre'];
             $_SESSION['tipo_perfil'] = $user_data['tipo_perfil'];
             $_SESSION['codigo_asignacion'] = $user_data['codigo_asignacion'];
         } else {
+            // ✅ GUARDAMOS AMBOS NOMBRES EN LA SESIÓN PARA TIENDAS
+            $_SESSION['nombre_usuario'] = $user_data['nombre_usuario']; // Nombre del usuario
+            $_SESSION['nombre'] = $user_data['nombre_usuario'];          // Para compatibilidad
+            $_SESSION['nombre_tienda'] = $user_data['nombre_tienda'];    // Nombre real de la tienda
             $_SESSION['id_tienda'] = $user_data['id_tienda'];
             $_SESSION['tipo_comprador'] = $user_data['tipo_comprador'];
         }

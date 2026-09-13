@@ -50,6 +50,7 @@ try {
                 sd.vta_sem_4 as v4,
                 sd.vta_sem_5 as v5,
                 sd.vta_sem_6 as v6,
+                sd.unid_pallet,
                 
                 -- SDS calculados
                 ROUND((COALESCE(sd.disp, 0) + COALESCE(sd.pend, 0)) / NULLIF(sd.PV6, 0), 1) as sds_actual,

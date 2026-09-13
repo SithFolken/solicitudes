@@ -1,41 +1,141 @@
-/* assets/css/mis_solicitudes.css */
+/* ==========================================
+   assets/css/mis_solicitudes.css
+   Estilo Moderno y Corporativo - Tienda
+   ========================================== */
+
+/* Variables de color corporativo */
+:root {
+    --primary-blue: #0056b3;
+    --primary-dark: #003d82;
+    --success-green: #198754;
+    --warning-yellow: #ffc107;
+    --danger-red: #dc3545;
+    --gray-light: #f8f9fa;
+    --gray-dark: #343a40;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.15);
+}
 
 body {
-    background-color: #f8f9fa;
+    background-color: #f0f2f5;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.navbar {
-    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+/* ==========================================
+   NAVBAR MODERNO
+   ========================================== */
+.navbar-custom {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-dark) 100%) !important;
+    box-shadow: 0 4px 12px rgba(0, 86, 179, 0.25);
+    min-height: 65px;
+    padding: 0.5rem 1.5rem;
 }
 
+.navbar-custom .navbar-brand {
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: -0.3px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.95rem;
+}
+
+.user-info .tienda-nombre {
+    font-weight: 600;
+}
+
+.user-info .tienda-id {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.user-info .usuario-nombre {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.user-info .separator {
+    opacity: 0.4;
+    margin: 0 5px;
+}
+
+.badge-conectado {
+    background-color: var(--success-green) !important;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.dot-pulse {
+    width: 7px;
+    height: 7px;
+    background-color: #fff;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+/* ==========================================
+   SIDEBAR MODERNA
+   ========================================== */
 .sidebar {
     position: fixed;
-    top: 56px;
+    top: 65px;
     bottom: 0;
     left: 0;
     z-index: 100;
     padding: 0;
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    background-color: #ffffff;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    border-right: 1px solid #e9ecef;
 }
 
 .sidebar .nav-link {
     font-weight: 500;
-    color: #333;
-    padding: 0.75rem 1rem;
+    color: var(--gray-dark);
+    padding: 1rem 1.25rem;
+    border-left: 3px solid transparent;
+    transition: all 0.3s ease;
+    margin: 0.25rem 0;
+    border-radius: 0 8px 8px 0;
 }
 
 .sidebar .nav-link:hover {
-    color: #0d6efd;
-    background-color: #f8f9fa;
+    color: var(--primary-blue);
+    background-color: rgba(0, 86, 179, 0.08);
+    border-left-color: var(--primary-blue);
+    padding-left: 1.5rem;
 }
 
 .sidebar .nav-link.active {
-    color: #0d6efd;
-    background-color: #e7f5ff;
+    color: var(--primary-blue);
+    background-color: rgba(0, 86, 179, 0.12);
+    border-left-color: var(--primary-blue);
+    font-weight: 600;
+    box-shadow: -2px 0 8px rgba(0, 86, 179, 0.15);
 }
 
+.sidebar .nav-link i {
+    font-size: 1.1rem;
+    margin-right: 0.6rem;
+}
+
+/* ==========================================
+   MAIN CONTENT & HEADER
+   ========================================== */
 main {
     margin-left: 0;
+    padding: 2rem;
 }
 
 @media (min-width: 768px) {
@@ -44,26 +144,321 @@ main {
     }
 }
 
-.card {
-    border: none;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+.page-header {
+    background: white;
+    padding: 1.75rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 2rem;
+    border: 1px solid rgba(0,0,0,0.04);
 }
 
-.table th {
+.page-header h1 {
+    font-weight: 700;
+    color: var(--gray-dark);
+    font-size: 1.75rem;
+    margin-bottom: 0.25rem;
+}
+
+/* ==========================================
+   TARJETAS Y COMPONENTES
+   ========================================== */
+.card {
+    border-radius: 12px;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: white;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.card-header {
+    background: white;
+    border-bottom: 2px solid #f0f2f5;
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.card-header h5 {
     font-weight: 600;
+    color: var(--gray-dark);
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* ==========================================
+   TARJETAS DE RESUMEN (KPIs)
+   ========================================== */
+#resumenEstados .card-counter {
+    padding: 25px 20px;
+    border-radius: 12px;
+    color: white;
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: var(--shadow-sm);
+}
+
+#resumenEstados .card-counter:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+#resumenEstados .card-counter h3 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+    line-height: 1;
+}
+
+#resumenEstados .card-counter small {
     font-size: 0.85rem;
     text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.bg-pendiente { background: linear-gradient(135deg, #6c757d 0%, #495057 100%); }
+.bg-aprobada { background: linear-gradient(135deg, #0dcaf0 0%, #0d6efd 100%); }
+.bg-proceso { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: #212529 !important; }
+.bg-procesada { background: linear-gradient(135deg, var(--success-green) 0%, #146c43 100%); }
+.bg-rechazada { background: linear-gradient(135deg, var(--danger-red) 0%, #b02a37 100%); }
+
+/* ==========================================
+   FILTROS Y FORMULARIOS
+   ========================================== */
+.form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--gray-dark);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.form-select, .form-control {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.form-select:focus, .form-control:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 0.2rem rgba(0, 86, 179, 0.15);
+}
+
+/* ==========================================
+   BOTONES MODERNOS
+   ========================================== */
+.btn {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.65rem 1.25rem;
+    transition: all 0.2s;
+    border: none;
+    font-size: 0.9rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-dark) 100%);
+    box-shadow: 0 2px 8px rgba(0, 86, 179, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 86, 179, 0.4);
+}
+
+.btn-outline-primary {
+    border: 2px solid var(--primary-blue);
+    color: var(--primary-blue);
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background: var(--primary-blue);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
+}
+
+.btn-outline-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================
+   TABLA MODERNA
+   ========================================== */
+.table-responsive {
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+}
+
+.table {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.table thead th {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: var(--gray-dark);
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
     letter-spacing: 0.5px;
+    padding: 1rem 0.75rem;
+    border: none;
+    white-space: nowrap;
+}
+
+.table tbody tr {
+    transition: all 0.2s;
+    border-bottom: 1px solid #f0f2f5;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0, 86, 179, 0.04);
+    transform: scale(1.005);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.table tbody td {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border: none;
 }
 
 .badge {
-    font-weight: 500;
+    padding: 0.5em 0.9em;
+    font-weight: 600;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    letter-spacing: 0.3px;
 }
 
-#resumenEstados .card {
-    transition: transform 0.2s;
+/* ==========================================
+   ESTADOS DE CARGA Y VACÍO
+   ========================================== */
+#sinRegistros {
+    background: white;
+    border-radius: 12px;
+    padding: 3rem;
 }
 
-#resumenEstados .card:hover {
-    transform: translateY(-5px);
+#sinRegistros i {
+    opacity: 0.3;
+    margin-bottom: 1rem;
+}
+
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
+@media (max-width: 768px) {
+    .sidebar {
+        display: none;
+    }
+    
+    main {
+        margin-left: 0;
+        padding: 1rem;
+    }
+    
+    .navbar-custom {
+        padding: 0.5rem 1rem;
+    }
+    
+    .user-info {
+        font-size: 0.85rem;
+        gap: 8px;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    
+    .user-info .separator {
+        display: none;
+    }
+}
+
+/* ==========================================
+   TOOLTIP DE IMAGEN PARA SKUs
+   ========================================== */
+.sku-tooltip {
+    position: fixed !important;
+    display: none !important;
+    background: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3) !important;
+    padding: 8px !important;
+    z-index: 999999 !important;
+    max-width: 220px !important;
+    pointer-events: none !important;
+    border: 2px solid var(--primary-blue) !important;
+}
+
+.sku-tooltip img {
+    width: 100% !important;
+    max-width: 200px !important;
+    max-height: 200px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    border-radius: 4px !important;
+    display: block !important;
+}
+
+.sku-tooltip .sku-label {
+    text-align: center !important;
+    margin-top: 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: var(--primary-blue) !important;
+}
+
+.sku-hover-cell {
+    cursor: help !important;
+}
+
+.sku-hover-cell:hover {
+    background-color: rgba(0, 86, 179, 0.15) !important;
+}
+
+/* ==========================================
+   ANIMACIONES
+   ========================================== */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.btn-actualizar {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-actualizar::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-actualizar:active::after {
+    width: 300px;
+    height: 300px;
 }

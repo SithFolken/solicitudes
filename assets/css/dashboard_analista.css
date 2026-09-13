@@ -1,26 +1,27 @@
 /* assets/css/dashboard_analista.css */
-/* Estilos ESPECÍFICOS del Dashboard del Analista */
+/* Estilos ESPECÍFICOS del Dashboard del Analista (Versión Corporativa) */
 
 /* ==========================================
-   TARJETAS KPI - Gradientes
+   TARJETAS KPI - Gradientes Corporativos
+   (Usa las variables definidas en dashboard.css)
    ========================================== */
 .bg-gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--corp-azul, #0056b3) 0%, var(--corp-azul-oscuro, #003d82) 100%);
     color: white;
 }
 
 .bg-gradient-success {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, var(--corp-verde, #198754) 0%, #146c43 100%);
     color: white;
 }
 
 .bg-gradient-warning {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
+    background: linear-gradient(135deg, var(--corp-amarillo, #ffc107) 0%, var(--corp-amarillo-oscuro, #e0a800) 100%);
+    color: #212529; /* Texto oscuro para contraste con el amarillo */
 }
 
 .bg-gradient-info {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, #4dabf7 0%, var(--corp-azul, #0056b3) 100%);
     color: white;
 }
 
@@ -36,7 +37,7 @@
 
 .card-kpi .icon {
     font-size: 2.5rem;
-    opacity: 0.3;
+    opacity: 0.2; /* Más sutil para un look más elegante */
 }
 
 /* ==========================================
@@ -46,13 +47,14 @@
     background: white;
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     margin-bottom: 20px;
+    border-top: 4px solid var(--corp-azul, #0056b3); /* Detalle corporativo superior */
 }
 
 .chart-container h5 {
-    color: #2c3e50;
-    font-weight: 600;
+    color: var(--corp-gris, #343a40);
+    font-weight: 700;
     margin-bottom: 15px;
 }
 
@@ -63,14 +65,15 @@
     background: white;
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     margin-bottom: 20px;
+    border-left: 4px solid var(--corp-amarillo, #ffc107);
 }
 
 .btn-action {
     border-radius: 8px;
     padding: 12px 20px;
-    font-weight: 500;
+    font-weight: 600;
     transition: all 0.2s ease;
 }
 
@@ -87,7 +90,8 @@
     padding: 25px;
     border-radius: 12px;
     margin-bottom: 25px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border-left: 5px solid var(--corp-azul, #0056b3);
 }
 
 /* ==========================================
@@ -99,7 +103,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.95);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -107,7 +111,7 @@
 }
 
 /* ==========================================
-   CORRECCIONES HIGHCHARTS - VERSIÓN LIMPIA
+   CORRECCIONES HIGHCHARTS - VERSIÓN CORPORATIVA
    ========================================== */
 
 /* Forzar barras gruesas y visibles */
@@ -121,7 +125,7 @@
 /* Labels de ejes */
 .highcharts-xaxis-labels text,
 .highcharts-yaxis-labels text {
-    fill: #495057 !important;
+    fill: var(--corp-gris, #343a40) !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     text-decoration: none !important;
@@ -129,26 +133,26 @@
 
 /* Labels de datos (valores sobre barras) */
 .highcharts-data-label text {
-    fill: #2c3e50 !important;
+    fill: var(--corp-gris, #343a40) !important;
     font-weight: 700 !important;
-    font-size: 14px !important;
+    font-size: 12px !important;
 }
 
 /* Títulos */
 .highcharts-title text,
 .highcharts-subtitle text {
-    fill: #2c3e50 !important;
+    fill: var(--corp-gris, #343a40) !important;
 }
 
 /* Tooltip */
 .highcharts-tooltip text {
-    fill: #2c3e50 !important;
+    fill: var(--corp-gris, #343a40) !important;
     font-size: 13px !important;
 }
 
-/* Botón drill-up */
+/* Botón drill-up (usando colores corporativos en lugar de morado) */
 .highcharts-drillup-button rect {
-    fill: #667eea !important;
+    fill: var(--corp-azul, #0056b3) !important;
     stroke: none !important;
     rx: 20 !important;
 }
@@ -160,7 +164,7 @@
 }
 
 .highcharts-drillup-button:hover rect {
-    fill: #764ba2 !important;
+    fill: var(--corp-azul-oscuro, #003d82) !important;
 }
 
 /* ==========================================
@@ -174,4 +178,46 @@
     .chart-container h5 {
         font-size: 14px;
     }
+}
+
+/* ==========================================
+   TOOLTIP DE IMAGEN PARA SKUs
+   ========================================== */
+.sku-tooltip {
+    position: fixed !important;
+    display: none !important;
+    background: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3) !important;
+    padding: 8px !important;
+    z-index: 999999 !important;
+    max-width: 220px !important;
+    pointer-events: none !important;
+    border: 2px solid #0056b3 !important;
+}
+
+.sku-tooltip img {
+    width: 100% !important;
+    max-width: 200px !important;
+    max-height: 200px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    border-radius: 4px !important;
+    display: block !important;
+}
+
+.sku-tooltip .sku-label {
+    text-align: center !important;
+    margin-top: 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #0056b3 !important;
+}
+
+.sku-hover-cell {
+    cursor: help !important;
+}
+
+.sku-hover-cell:hover {
+    background-color: rgba(0, 86, 179, 0.15) !important;
 }

@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 $id_solicitud = $input['id_solicitud'] ?? 0;
 $items = $input['items'] ?? [];
-$procesar = $input['procesar'] ?? true;  // ✅ Nuevo parámetro
+$procesar = $input['procesar'] ?? true;
 
 if ($id_solicitud <= 0 || empty($items)) {
     echo json_encode(['success' => false, 'message' => 'Datos inválidos']);
@@ -38,7 +38,7 @@ try {
         $cantidad_final = $item['cantidad_final'];
         $md = $item['md'];
         $no_cargar = $item['no_cargar'];
-        $motivo = $item['motivo'];
+        $motivo = trim($item['motivo']);
         
         if ($no_cargar) {
             $estado_item = 'RECHAZADO';
@@ -48,12 +48,15 @@ try {
             $skus_aprobados++;
         }
         
+        // ✅ CORREGIDO: Usar placeholders únicos (:motivo1 y :motivo2) para evitar el error HY093
         $sql_update = "UPDATE Analisis_Procesos.solicitudes_carga 
                        SET carga_final = :cantidad_final,
                            md = :md,
                            estado_item = :estado_item,
-                            campo_cambios = :motivo,
-                           campo_cambios = CONCAT(COALESCE(campo_cambios, ''), ' - Modificado por analista el ', NOW())
+                           campo_cambios = CASE 
+                               WHEN :motivo1 != '' THEN CONCAT(COALESCE(campo_cambios, ''), ' | ', :motivo2)
+                               ELSE campo_cambios
+                           END
                        WHERE id_detalle = :id_detalle";
         
         $stmt = $pdo->prepare($sql_update);
@@ -61,16 +64,16 @@ try {
             'cantidad_final' => $cantidad_final,
             'md' => $md,
             'estado_item' => $estado_item,
-            'motivo' => $motivo,
+            'motivo1' => $motivo, // ✅ Placeholder único 1
+            'motivo2' => $motivo, // ✅ Placeholder único 2
             'id_detalle' => $id_detalle
         ]);
         
         $skus_procesados++;
     }
     
-    // ✅ DETERMINAR ESTADO SEGÚN EL MODO
+    // ✅ DETERMINAR ESTADO Y ACTUALIZAR PADRE
     if ($procesar) {
-        // Modo: PROCESAR (cambiar estado)
         if ($skus_rechazados > 0 && $skus_aprobados === 0) {
             $estado_general = 'RECHAZADA';
         } elseif ($skus_rechazados > 0 && $skus_aprobados > 0) {
@@ -79,16 +82,22 @@ try {
             $estado_general = 'PROCESADA';
         }
         
+        // Calcular ciclo de corte
+        $hora_actual = (int)date('H');
+        $ciclo_corte = ($hora_actual < 13) ? date('Y-m-d') : date('Y-m-d', strtotime('+1 day'));
+        
         $sql_padre = "UPDATE Analisis_Procesos.solicitudes 
                       SET estado_general = :estado_general,
                           fecha_procesamiento = NOW(),
-                          usuario_proceso = :usuario
+                          usuario_proceso = :usuario,
+                          ciclo_corte = :ciclo_corte
                       WHERE id_solicitud = :id_solicitud";
         
         $stmt_padre = $pdo->prepare($sql_padre);
         $stmt_padre->execute([
             'estado_general' => $estado_general,
             'usuario' => $_SESSION['user_id'],
+            'ciclo_corte' => $ciclo_corte,
             'id_solicitud' => $id_solicitud
         ]);
         
@@ -96,18 +105,21 @@ try {
     } else {
         // Modo: SOLO GUARDAR (sin cambiar estado)
         $sql_padre = "UPDATE Analisis_Procesos.solicitudes 
-                    SET fecha_modificacion = NOW()
-                    WHERE id_solicitud = :id_solicitud";
+                      SET fecha_modificacion = NOW()
+                      WHERE id_solicitud = :id_solicitud";
         
         $stmt_padre = $pdo->prepare($sql_padre);
         $stmt_padre->execute([
             'id_solicitud' => $id_solicitud
         ]);
         
-        $mensaje = "Cambios guardados. $skus_aprobados aprobados, $skus_rechazados rechazados. La solicitud permanece en estado PENDIENTE/EN_PROCESO.";
+        $mensaje = "Cambios guardados. $skus_aprobados aprobados, $skus_rechazados rechazados. La solicitud permanece en su estado actual.";
     }
         
     $pdo->commit();
+    
+    // Limpiar sesión al finalizar exitosamente
+    unset($_SESSION['solicitud_activa']);
     
     echo json_encode([
         'success' => true,
@@ -115,9 +127,9 @@ try {
         'skus_procesados' => $skus_procesados,
         'procesado' => $procesar
     ]);
-    
+        
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) {
+    if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
     error_log("Error guardando cambios: " . $e->getMessage());

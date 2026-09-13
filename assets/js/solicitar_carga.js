@@ -16,13 +16,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await inicializarModoEdicion(parseInt(idEditar));
     }
     
-    // 3. Event listeners del formulario manual (solo si NO estamos en edición múltiple)
+    // 3. Event listeners del formulario manual
     const formManual = document.getElementById('formSolicitudManual');
     if (formManual) {
-        formManual.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await enviarSolicitudManual();
-        });
+        // ✅ ELIMINADO: El listener 'submit' porque ahora usamos onclick="mostrarPreviewSolicitud()" en los botones
         
         // Autocomplete dinámico (formulario normal)
         const inputSku = document.getElementById('sku');
@@ -105,20 +102,17 @@ async function cargarFamilias() {
 // Inicializar Modo Edición
 // ==========================================
 async function inicializarModoEdicion(idEditar) {
-    // 1. Cambiar título
     const titulo = document.querySelector('h1.h2, h2');
     if (titulo) titulo.textContent = `Editar Solicitud #${idEditar}`;
     
-    // 2. Cambiar botón del formulario manual (por si acaso se usa)
     const btnEnviar = document.getElementById('btnEnviarManual');
     if (btnEnviar) {
         btnEnviar.setAttribute('data-id-editar', idEditar);
         btnEnviar.classList.remove('btn-primary');
         btnEnviar.classList.add('btn-warning', 'text-dark');
-        btnEnviar.innerHTML = '<i class="bi bi-save me-2"></i>Actualizar Solicitud';
+        btnEnviar.innerHTML = '<i class="bi bi-eye me-2"></i>Revisar y Actualizar Solicitud';
     }
     
-    // 3. Cargar datos
     try {
         const res = await fetch(`../api/obtener_detalle_solicitud.php?id=${idEditar}`);
         const texto = await res.text();
@@ -143,13 +137,11 @@ async function inicializarModoEdicion(idEditar) {
             return;
         }
         
-        // Precargar familia
         const selectFamilia = document.getElementById('idFamilia');
         if (selectFamilia && data.solicitud.id_familia) {
             selectFamilia.value = data.solicitud.id_familia;
         }
         
-        // Precargar observaciones
         const obsInput = document.getElementById('observaciones');
         if (obsInput && data.solicitud.observaciones_generales) {
             obsInput.value = data.solicitud.observaciones_generales;
@@ -158,7 +150,6 @@ async function inicializarModoEdicion(idEditar) {
         const skus = data.skus || [];
         const totalSKUs = skus.length;
         
-        // Mostrar alerta de modo edición
         const mainContent = document.querySelector('main');
         if (mainContent) {
             const alertaHTML = `
@@ -171,11 +162,9 @@ async function inicializarModoEdicion(idEditar) {
             mainContent.insertAdjacentHTML('afterbegin', alertaHTML);
         }
         
-        // Si hay múltiples SKUs, mostrar tabla de edición
         if (totalSKUs > 1) {
             construirTablaEdicionMultiple(skus, idEditar);
         } else if (totalSKUs === 1) {
-            // Edición simple: precargar el único SKU en el formulario
             const primerSku = skus[0];
             const skuInput = document.getElementById('sku');
             const descInput = document.getElementById('descripcion');
@@ -196,17 +185,14 @@ async function inicializarModoEdicion(idEditar) {
 // Construir Tabla de Edición Múltiple
 // ==========================================
 function construirTablaEdicionMultiple(skus, idEditar) {
-    // Ocultar formulario manual simple
     const formManual = document.getElementById('formSolicitudManual');
     if (formManual) formManual.style.display = 'none';
     
-    // Ocultar pestañas si existen
     const tabs = document.getElementById('myTab');
     if (tabs) tabs.style.display = 'none';
     const tabContent = document.getElementById('myTabContent');
     if (tabContent) tabContent.style.display = 'none';
     
-    // Crear contenedor de tabla
     const contenedor = document.createElement('div');
     contenedor.className = 'card border-0 shadow-sm mb-4';
     contenedor.id = 'contenedorEdicionMultiple';
@@ -282,18 +268,16 @@ function construirTablaEdicionMultiple(skus, idEditar) {
         mainContent.appendChild(contenedor);
     }
     
-    // ✅ AGREGAR AUTOCOMPLETE A TODOS LOS INPUTS DE SKU
     setTimeout(() => {
         inicializarAutocompleteEnTabla();
     }, 100);
 }
 
 // ==========================================
-// Inicializar Autocomplete en la Tabla (REUTILIZA buscar_sku.php)
+// Inicializar Autocomplete en la Tabla
 // ==========================================
 function inicializarAutocompleteEnTabla() {
     const inputsSKU = document.querySelectorAll('.sku-editable');
-    
     inputsSKU.forEach(input => {
         inicializarAutocompleteEnInput(input);
     });
@@ -320,7 +304,6 @@ function inicializarAutocompleteEnInput(input) {
         
         timeoutId = setTimeout(async () => {
             try {
-                // ✅ REUTILIZAMOS LA MISMA API buscar_sku.php
                 const response = await fetch(`../api/buscar_sku.php?q=${encodeURIComponent(valor)}`);
                 const data = await response.json();
                 
@@ -338,12 +321,8 @@ function inicializarAutocompleteEnInput(input) {
                                 <small class="text-muted">${producto.descripcion_producto}</small>
                             `;
                             
-                            item.addEventListener('mouseenter', () => {
-                                item.style.backgroundColor = '#f8f9fa';
-                            });
-                            item.addEventListener('mouseleave', () => {
-                                item.style.backgroundColor = 'white';
-                            });
+                            item.addEventListener('mouseenter', () => { item.style.backgroundColor = '#f8f9fa'; });
+                            item.addEventListener('mouseleave', () => { item.style.backgroundColor = 'white'; });
                             
                             item.addEventListener('click', () => {
                                 input.value = producto.sku;
@@ -353,7 +332,6 @@ function inicializarAutocompleteEnInput(input) {
                             
                             sugerenciasDiv.appendChild(item);
                         });
-                        
                         sugerenciasDiv.style.display = 'block';
                     }
                 }
@@ -372,7 +350,7 @@ function inicializarAutocompleteEnInput(input) {
 }
 
 // ==========================================
-// Agregar Nueva Fila SKU (con autocomplete)
+// Agregar Nueva Fila SKU
 // ==========================================
 function agregarNuevaFilaSKU() {
     const tbody = document.getElementById('tbodyEdicionSKUs');
@@ -381,17 +359,14 @@ function agregarNuevaFilaSKU() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td class="position-relative">
-            <input type="text" class="form-control form-control-sm sku-nueva" 
-                   placeholder="Buscar SKU..." autocomplete="off">
+            <input type="text" class="form-control form-control-sm sku-nueva" placeholder="Buscar SKU..." autocomplete="off">
             <div class="sugerencias-sku position-absolute w-100" style="display: none; z-index: 1000; background: white; border: 1px solid #ddd; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm desc-nueva" 
-                   placeholder="Descripción (se completa automáticamente)">
+            <input type="text" class="form-control form-control-sm desc-nueva" placeholder="Descripción (se completa automáticamente)">
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm cant-nueva" 
-                   value="1" min="1" required>
+            <input type="number" class="form-control form-control-sm cant-nueva" value="1" min="1" required>
         </td>
         <td>
             <button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaSKU(this)">
@@ -402,7 +377,6 @@ function agregarNuevaFilaSKU() {
     
     tbody.appendChild(tr);
     
-    // ✅ Inicializar autocomplete en la nueva fila
     setTimeout(() => {
         const nuevoInput = tr.querySelector('.sku-nueva');
         if (nuevoInput) {
@@ -435,7 +409,6 @@ async function guardarEdicionMultiple(idSolicitud) {
         return;
     }
     
-    // Recopilar todos los SKUs de la tabla
     const skus = [];
     const filas = document.querySelectorAll('#tbodyEdicionSKUs tr');
     
@@ -449,11 +422,7 @@ async function guardarEdicionMultiple(idSolicitud) {
             const cantidad = parseInt(cantInput.value) || 0;
             
             if (sku && cantidad > 0) {
-                skus.push({
-                    sku: sku,
-                    descripcion: descInput ? descInput.value.trim() : '',
-                    cantidad: cantidad
-                });
+                skus.push({ sku: sku, descripcion: descInput ? descInput.value.trim() : '', cantidad: cantidad });
             }
         }
     });
@@ -463,10 +432,9 @@ async function guardarEdicionMultiple(idSolicitud) {
         return;
     }
     
-    // Confirmar
     const confirm = await Swal.fire({
         title: '¿Guardar cambios?',
-        html: `Se actualizarán <strong>${skus.length} SKU(s)</strong>. Los items anteriores se reemplazarán y se re-evaluarán con el Árbol de Decisión.`,
+        html: `Se actualizarán <strong>${skus.length} SKU(s)</strong>. Los items anteriores se reemplazarán y se re-evaluarán.`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#ffc107',
@@ -477,42 +445,22 @@ async function guardarEdicionMultiple(idSolicitud) {
     
     if (!confirm.isConfirmed) return;
     
-    Swal.fire({
-        title: 'Guardando...',
-        text: 'Evaluando SKUs con el Árbol de Decisión',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
-    });
+    Swal.fire({ title: 'Guardando...', text: 'Evaluando SKUs con el Árbol de Decisión', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
     
     try {
         const response = await fetch('../api/actualizar_solicitud.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id_solicitud: parseInt(idSolicitud),
-                observaciones: observaciones,
-                skus: skus
-            })
+            body: JSON.stringify({ id_solicitud: parseInt(idSolicitud), observaciones: observaciones, skus: skus })
         });
         
         const texto = await response.text();
         let data;
-        try {
-            data = JSON.parse(texto);
-        } catch (e) {
-            throw new Error("Respuesta inválida del servidor");
-        }
+        try { data = JSON.parse(texto); } catch (e) { throw new Error("Respuesta inválida del servidor"); }
         
         if (data.success) {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Solicitud actualizada!',
-                text: data.message,
-                timer: 2500,
-                showConfirmButton: false
-            }).then(() => {
-                window.location.href = 'mis_solicitudes.php?actualizado=1';
-            });
+            Swal.fire({ icon: 'success', title: '¡Solicitud actualizada!', text: data.message, timer: 2500, showConfirmButton: false })
+                .then(() => { window.location.href = 'mis_solicitudes.php?actualizado=1'; });
         } else {
             Swal.fire('Error', data.message || 'No se pudo actualizar', 'error');
         }
@@ -540,12 +488,7 @@ async function buscarSugerenciasSKU(termino) {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.className = 'list-group-item list-group-item-action';
-                item.innerHTML = `
-                    <div class="d-flex w-100 justify-content-between">
-                        <strong class="mb-1">${producto.sku}</strong>
-                    </div>
-                    <small class="text-muted">${producto.descripcion_producto}</small>
-                `;
+                item.innerHTML = `<div class="d-flex w-100 justify-content-between"><strong class="mb-1">${producto.sku}</strong></div><small class="text-muted">${producto.descripcion_producto}</small>`;
                 
                 item.addEventListener('click', () => {
                     document.getElementById('sku').value = producto.sku;
@@ -555,7 +498,6 @@ async function buscarSugerenciasSKU(termino) {
                 
                 contenedor.appendChild(item);
             });
-            
             contenedor.style.display = 'block';
         } else {
             contenedor.style.display = 'none';
@@ -567,122 +509,212 @@ async function buscarSugerenciasSKU(termino) {
 }
 
 // ==========================================
-// Enviar solicitud manual (modo normal o edición simple)
+// 1. Mostrar Vista Previa antes de Enviar (CON DETALLES COMPLETOS)
 // ==========================================
-async function enviarSolicitudManual() {
-    const btn = document.getElementById('btnEnviarManual');
+async function mostrarPreviewSolicitud() {
+    const familiaSelect = document.getElementById('idFamilia'); 
+    const familiaTexto = familiaSelect ? familiaSelect.options[familiaSelect.selectedIndex].text : 'No seleccionada';
     
-    // Detectar si es modo edición
-    const idEditar = btn.getAttribute('data-id-editar');
-    const esEdicion = idEditar && parseInt(idEditar) > 0;
+    const sku = document.getElementById('sku')?.value || '';
+    const descripcion = document.getElementById('descripcion')?.value || 'Sin descripción';
+    const cantidad = document.getElementById('cantidad')?.value || '0';
+    const observaciones = document.getElementById('observaciones')?.value || '';
 
-    const idFamilia = document.getElementById('idFamilia').value;
-    const sku = document.getElementById('sku').value.trim();
-    const cantidad = parseInt(document.getElementById('cantidad').value) || 0;
-    const descripcion = document.getElementById('descripcion').value.trim();
-    const observaciones = document.getElementById('observaciones').value.trim();
-
-    if (!idFamilia) {
-        Swal.fire('Campo requerido', 'Debe seleccionar la familia', 'warning');
-        return;
-    }
-    if (!sku || cantidad <= 0) {
-        Swal.fire('Campos incompletos', 'Verifica el SKU y la cantidad', 'warning');
+    if (!sku || parseInt(cantidad) <= 0) {
+        Swal.fire({ 
+            icon: 'warning', 
+            title: 'Campos incompletos', 
+            text: 'Por favor ingresa un SKU válido y una cantidad mayor a 0.',
+            confirmButtonColor: '#0d6efd'
+        });
         return;
     }
 
-    // Confirmación
-    const tituloConfirm = esEdicion ? '¿Actualizar solicitud?' : '¿Enviar solicitud?';
-    const textoConfirm = esEdicion 
-        ? 'El item actual se reemplazará y se re-evaluará con el Árbol de Decisión.' 
-        : `Se enviará la solicitud de ${cantidad} unidad(es) del SKU ${sku}.`;
-
-    const confirm = await Swal.fire({
-        title: tituloConfirm,
-        text: textoConfirm,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: esEdicion ? '#ffc107' : '#0d6efd',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: esEdicion ? 'Sí, actualizar' : 'Sí, enviar',
-        cancelButtonText: 'Cancelar'
+    // Mostrar loading
+    Swal.fire({
+        title: 'Cargando detalles...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
     });
 
-    if (!confirm.isConfirmed) return;
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
-
     try {
-        let url, payload;
-
-        if (esEdicion) {
-            url = '../api/actualizar_solicitud.php';
-            payload = {
-                id_solicitud: parseInt(idEditar),
-                observaciones: observaciones,
-                skus: [{
-                    sku: sku,
-                    cantidad: cantidad,
-                    descripcion: descripcion
-                }]
-            };
-        } else {
-            url = '../api/solicitar_carga.php';
-            payload = {
-                sku: sku,
-                cantidad: cantidad,
-                descripcion: descripcion,
-                id_familia: idFamilia,
-                observaciones: observaciones
-            };
+        // Obtener detalles completos del producto
+        const response = await fetch(`../api/obtener_detalle_producto.php?sku=${encodeURIComponent(sku)}`);
+        const data = await response.json();
+        
+        Swal.close();
+        
+        if (!data.success) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Producto no encontrado',
+                text: 'No se encontraron datos del producto en el sugerido diario. ¿Deseas continuar de todas formas?',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, continuar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, observaciones);
+                }
+            });
+            return;
         }
 
+        const producto = data.producto;
+        
+        // Calcular pallets
+        const unidPallet = parseFloat(producto.unid_pallet) || 1;
+        const palletsExactos = parseFloat(cantidad) > 0 ? (parseFloat(cantidad) / unidPallet) : 0;
+        
+        // Llenar datos básicos
+        document.getElementById('confirm_familia').textContent = familiaTexto;
+        document.getElementById('confirm_tienda').textContent = NOMBRE_TIENDA + (ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
+        
+        // Construir tabla con TODOS los detalles 
+        
+        const tbody = document.getElementById('confirm_tabla_detalle');
+        tbody.innerHTML = `
+            <tr>
+                <td class="text-center"><strong>${producto.sku}</strong></td>
+                <td class="text-truncate" title="${producto.descripcion_producto || descripcion}">${producto.descripcion_producto || descripcion}</td>
+                <td class="text-center"><strong>${producto.v6 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.v5 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.v4 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.v3 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.v2 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.v1 || 0}</strong></td>
+                <td class="text-center"><strong>${producto.PV6 || 0}</strong></td>
+                <td class="text-center">${producto.PV3 || 0}</td>
+                <td class="text-center">${producto.capacity || 0}</td>
+                <td class="text-center">${producto.lt || 0}</td>
+                <td class="text-center">${producto.disp_tda || 0}</td>
+                <td class="text-center">${producto.pend_tda || 0}</td>
+                <td class="text-center"><strong>${producto.sds_actual || 0}</strong></td>
+                <td class="text-center"><strong class="text-primary fs-6">${cantidad}</strong></td>
+                <td class="text-center">
+                    <strong class="text-primary">${palletsExactos.toFixed(3)}</strong><br>
+                    <small class="text-muted" style="font-size: 10px;">(${unidPallet} u/pl)</small>
+                </td>
+                <td class="text-center">${producto.md_defecto || '-'}</td>
+            </tr>
+        `;
+
+        // Mostrar u ocultar observaciones
+        if (observaciones.trim()) {
+            document.getElementById('confirm_observaciones_container').style.display = 'block';
+            document.getElementById('confirm_observaciones').textContent = observaciones;
+        } else {
+            document.getElementById('confirm_observaciones_container').style.display = 'none';
+        }
+
+        // Mostrar el modal
+        const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.close();
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar los detalles del producto'
+        });
+    }
+}
+
+// Función auxiliar para mostrar modal sin detalles (cuando no hay datos en sugerido)
+function mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, observaciones) {
+    document.getElementById('confirm_familia').textContent = familiaTexto;
+    document.getElementById('confirm_tienda').textContent = NOMBRE_TIENDA + (ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
+    
+    const tbody = document.getElementById('confirm_tabla_detalle');
+    tbody.innerHTML = `
+        <tr>
+            <td><strong>${sku}</strong></td>
+            <td>${descripcion}</td>
+            <td colspan="11" class="text-center text-muted">
+                <i class="bi bi-info-circle me-2"></i>Sin datos disponibles en el sugerido diario
+            </td>
+        </tr>
+    `;
+
+    if (observaciones.trim()) {
+        document.getElementById('confirm_observaciones_container').style.display = 'block';
+        document.getElementById('confirm_observaciones').textContent = observaciones;
+    } else {
+        document.getElementById('confirm_observaciones_container').style.display = 'none';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+    modal.show();
+}
+
+// ==========================================
+// 2. Confirmar y Enviar al Servidor (AJAX) - ACTUALIZADO PARA SOPORTAR EDICIÓN
+// ==========================================
+async function confirmarYEnviarSolicitud() {
+    const modalEl = document.getElementById('modalConfirmacion');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+    
+    Swal.fire({ title: 'Procesando...', text: 'Por favor espera un momento', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+    // Detectar si es modo edición
+    const btn = document.getElementById('btnEnviarManual');
+    const idEditar = btn ? btn.getAttribute('data-id-editar') : "0";
+    const esEdicion = idEditar && parseInt(idEditar) > 0;
+
+    const formData = {
+        id_familia: document.getElementById('idFamilia')?.value || '',
+        sku: document.getElementById('sku')?.value || '',
+        descripcion: document.getElementById('descripcion')?.value || '',
+        cantidad: parseInt(document.getElementById('cantidad')?.value || 0),
+        observaciones: document.getElementById('observaciones')?.value || ''
+    };
+
+    // Determinar URL y payload según si es edición o nuevo
+    let url = '../api/solicitar_carga.php';
+    let payload = formData;
+
+    if (esEdicion) {
+        url = '../api/actualizar_solicitud.php';
+        payload = {
+            id_solicitud: parseInt(idEditar),
+            observaciones: formData.observaciones,
+            skus: [{
+                sku: formData.sku,
+                cantidad: formData.cantidad,
+                descripcion: formData.descripcion
+            }]
+        };
+    }
+
+    try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
-        const texto = await response.text();
-        let data;
-        try {
-            data = JSON.parse(texto);
-        } catch (e) {
-            throw new Error("Respuesta inválida del servidor");
-        }
+        
+        const data = await response.json();
 
         if (data.success) {
             Swal.fire({
                 icon: 'success',
-                title: esEdicion ? '¡Solicitud actualizada!' : '¡Solicitud creada!',
-                text: data.message,
-                timer: 2500,
-                showConfirmButton: false
+                title: esEdicion ? '¡Solicitud Actualizada!' : '¡Solicitud Creada!',
+                html: esEdicion ? 'Los cambios han sido guardados y re-evaluados.' : `La solicitud <strong>#${data.id_solicitud}</strong> ha sido registrada exitosamente.`,
+                confirmButtonColor: '#198754',
+                timer: 3000,
+                timerProgressBar: true
             }).then(() => {
                 window.location.href = 'mis_solicitudes.php?actualizado=1';
             });
         } else {
-            if (data.tipo_error === 'SOLICITUD_PENDIENTE' || data.tipo_error === 'SKU_PENDIENTE') {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Solicitud en proceso',
-                    html: `<div class="text-start"><p>${data.message}</p></div>`,
-                    confirmButtonText: 'Entendido',
-                    confirmButtonColor: '#ffc107'
-                });
-            } else {
-                Swal.fire('Error', data.message, 'error');
-            }
+            Swal.fire({ icon: 'error', title: 'Error', html: data.message || 'Ocurrió un error inesperado.', confirmButtonColor: '#dc3545' });
         }
     } catch (error) {
         console.error('Error:', error);
-        Swal.fire('Error', error.message || 'Error del servidor', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = esEdicion 
-            ? '<i class="bi bi-save me-2"></i>Actualizar Solicitud' 
-            : '<i class="bi bi-send me-2"></i>Enviar Solicitud';
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor. Intenta nuevamente.', confirmButtonColor: '#dc3545' });
     }
 }
 
@@ -705,43 +737,20 @@ async function procesarArchivoCarga() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
     
     try {
-        const response = await fetch('../api/procesar_archivo_carga.php', {
-            method: 'POST',
-            body: formData
-        });
-        
+        const response = await fetch('../api/procesar_archivo_carga.php', { method: 'POST', body: formData });
         const texto = await response.text();
         
         let data;
-        try {
-            data = JSON.parse(texto);
-        } catch (e) {
-            throw new Error("El servidor devolvió una respuesta inválida. Revisa la consola.");
-        }
+        try { data = JSON.parse(texto); } catch (e) { throw new Error("El servidor devolvió una respuesta inválida."); }
         
         if (data.success) {
             mostrarResumenProcesamiento(data);
         } else {
-            if (data.tipo_error === 'SOLICITUD_PENDIENTE' || data.tipo_error === 'SKU_PENDIENTE') {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Ya tienes una solicitud en proceso',
-                    html: `<div class="text-start"><p>${data.message}</p></div>`,
-                    confirmButtonText: 'Entendido',
-                    confirmButtonColor: '#ffc107'
-                });
-            } else {
-                Swal.fire('Error', data.message, 'error');
-            }
+            Swal.fire('Error', data.message || 'Ocurrió un error inesperado.', 'error');
         }
     } catch (error) {
         console.error('💥 Error en procesarArchivoCarga:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión o formato',
-            text: error.message,
-            confirmButtonColor: '#dc3545'
-        });
+        Swal.fire({ icon: 'error', title: 'Error de conexión o formato', text: error.message, confirmButtonColor: '#dc3545' });
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-upload me-2"></i>Procesar Archivo de Carga';
@@ -753,9 +762,7 @@ async function procesarArchivoCarga() {
 // ==========================================
 function mostrarResumenProcesamiento(data) {
     const modalElement = document.getElementById('modalResumenProcesamiento');
-    
     if (!modalElement) {
-        console.error('❌ El modal no existe en el DOM');
         Swal.fire('Error', 'No se pudo mostrar el resumen. Recarga la página.', 'error');
         return;
     }
@@ -768,7 +775,6 @@ function mostrarResumenProcesamiento(data) {
     document.getElementById('countAprobados').textContent = aprobados.length;
     document.getElementById('countRechazados').textContent = rechazados.length;
     
-    // Llenar tabla de aprobados
     const tbodyAprobados = document.getElementById('tbodyAprobados');
     tbodyAprobados.innerHTML = '';
     if (aprobados.length === 0) {
@@ -776,16 +782,11 @@ function mostrarResumenProcesamiento(data) {
     } else {
         aprobados.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><code>${item.sku}</code></td>
-                <td>${item.descripcion || 'Sin descripción'}</td>
-                <td class="text-end"><strong>${item.cantidad}</strong></td>
-            `;
+            tr.innerHTML = `<td><code>${item.sku}</code></td><td>${item.descripcion || 'Sin descripción'}</td><td class="text-end"><strong>${item.cantidad}</strong></td>`;
             tbodyAprobados.appendChild(tr);
         });
     }
     
-    // Llenar tabla de rechazados
     const tbodyRechazados = document.getElementById('tbodyRechazados');
     tbodyRechazados.innerHTML = '';
     if (rechazados.length === 0) {
@@ -793,12 +794,7 @@ function mostrarResumenProcesamiento(data) {
     } else {
         rechazados.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><code>${item.sku}</code></td>
-                <td>${item.descripcion || 'Sin descripción'}</td>
-                <td class="text-end">${item.cantidad}</td>
-                <td><small class="text-danger">${item.motivo || 'No especificado'}</small></td>
-            `;
+            tr.innerHTML = `<td><code>${item.sku}</code></td><td>${item.descripcion || 'Sin descripción'}</td><td class="text-end">${item.cantidad}</td><td><small class="text-danger">${item.motivo || 'No especificado'}</small></td>`;
             tbodyRechazados.appendChild(tr);
         });
     }

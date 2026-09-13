@@ -23,11 +23,16 @@ async function cargarDashboardAnalista() {
         document.getElementById('kpiTasaAprobacion').textContent = (data.kpis.tasaAprobacion || 0) + '%';
         document.getElementById('kpiTotalSKUs').textContent = data.kpis.totalSKUs || 0;
 
+        document.getElementById('kpiSlaTiempo').textContent = data.kpis.sla_a_tiempo || 0;
+        document.getElementById('kpiSlaUrgente').textContent = data.kpis.sla_por_cumplirse || 0;
+        document.getElementById('kpiSlaVencidas').textContent = data.kpis.sla_vencidas || 0;
+
         // Gráficos con datos validados
         if (data.graficos.porEstado?.length > 0) crearGraficoEstado(data.graficos.porEstado);
         if (data.graficos.porDias?.length > 0) crearGraficoDias(data.graficos.porDias);
         if (data.graficos.porMD?.length > 0) crearGraficoMD(data.graficos.porMD);
         if (data.graficos.topTiendas?.length > 0) crearGraficoTiendas(data.graficos.topTiendas);
+        
         // Gráfico 5: Top SKUs con drill-down
         if (data.graficos.topSKUs?.length > 0) {
             crearGraficoTopSKUs(data.graficos.topSKUs);
@@ -47,52 +52,46 @@ function ocultarLoading() {
 
 function mostrarError(mensaje) {
     if (typeof Swal !== 'undefined') {
-        Swal.fire({ icon: 'error', title: 'Error', text: mensaje, confirmButtonColor: '#198754' });
+        Swal.fire({ icon: 'error', title: 'Error', text: mensaje, confirmButtonColor: '#0056b3' });
     } else {
         alert('Error: ' + mensaje);
     }
 }
 
 // ==========================================
-// 🎨 CONFIGURACIONES MODERNAS DE HIGHCHARTS
+// 🎨 PALETA DE COLORES CORPORATIVOS HIGHCHARTS
 // ==========================================
-
-// Paleta de colores moderna
-const coloresModernos = {
-    primario: '#667eea',
-    secundario: '#764ba2',
-    exito: '#11998e',
-    exitoClaro: '#38ef7d',
-    advertencia: '#f093fb',
-    advertenciaOscuro: '#f5576c',
-    info: '#4facfe',
-    infoClaro: '#00f2fe',
+const coloresCorp = {
+    azul: '#0056b3',
+    azulOscuro: '#003d82',
+    amarillo: '#ffc107',
+    rojo: '#dc3545',
+    verde: '#198754',
     gris: '#6c757d',
-    peligro: '#dc3545'
+    azulClaro: '#4dabf7'
 };
 
-// Gradientes modernos
-const gradientes = {
+const gradientesCorp = {
     primario: {
         linearGradient: { x1: 0, y1: 0, x2: 1, y2: 0 },
-        stops: [[0, '#667eea'], [1, '#764ba2']]
+        stops: [[0, '#0056b3'], [1, '#003d82']]
     },
     exito: {
         linearGradient: { x1: 0, y1: 0, x2: 1, y2: 0 },
-        stops: [[0, '#11998e'], [1, '#38ef7d']]
+        stops: [[0, '#198754'], [1, '#146c43']]
     },
     advertencia: {
         linearGradient: { x1: 0, y1: 0, x2: 1, y2: 0 },
-        stops: [[0, '#f093fb'], [1, '#f5576c']]
+        stops: [[0, '#ffc107'], [1, '#e0a800']]
     },
     info: {
         linearGradient: { x1: 0, y1: 0, x2: 1, y2: 0 },
-        stops: [[0, '#4facfe'], [1, '#00f2fe']]
+        stops: [[0, '#4dabf7'], [1, '#0056b3']]
     }
 };
 
 // ==========================================
-// Gráfico 1: Distribución por Estado (DONUT MODERNO)
+// Gráfico 1: Distribución por Estado (DONUT CORPORATIVO)
 // ==========================================
 function crearGraficoEstado(datos) {
     const series = datos.map(item => ({
@@ -102,14 +101,8 @@ function crearGraficoEstado(datos) {
     }));
 
     Highcharts.chart('chartEstado', {
-        chart: {
-            type: 'pie',
-            backgroundColor: 'transparent',
-            spacing: [20, 20, 20, 20]
-        },
-        title: {
-            text: null
-        },
+        chart: { type: 'pie', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
+        title: { text: null },
         tooltip: {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
             borderColor: '#e0e0e0',
@@ -126,21 +119,11 @@ function crearGraficoEstado(datos) {
                 borderRadius: 8,
                 borderWidth: 3,
                 borderColor: '#ffffff',
-                shadow: {
-                    color: 'rgba(0, 0, 0, 0.1)',
-                    offsetX: 0,
-                    offsetY: 3,
-                    width: 10
-                },
+                shadow: { color: 'rgba(0, 0, 0, 0.1)', offsetX: 0, offsetY: 3, width: 10 },
                 dataLabels: {
                     enabled: true,
                     distance: -30,
-                    style: {
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        textOutline: 'none',
-                        color: '#2c3e50'
-                    },
+                    style: { fontSize: '11px', fontWeight: '600', textOutline: 'none', color: '#2c3e50' },
                     format: '<b>{point.name}</b><br>{point.percentage:.1f}%'
                 },
                 startAngle: -90,
@@ -149,29 +132,24 @@ function crearGraficoEstado(datos) {
                 size: '85%'
             }
         },
-        series: [{
-            name: 'Estado',
-            colorByPoint: false,
-            data: series,
-            innerSize: '55%' // Donut en lugar de pie
-        }]
+        series: [{ name: 'Estado', colorByPoint: false, data: series, innerSize: '55%' }]
     });
 }
 
 function obtenerColorPorEstado(estado) {
     const colores = {
-        'PENDIENTE': '#6c757d',
-        'PROCESADA': '#28a745',
-        'PROCESADA_PARCIAL': '#ffc107',
-        'RECHAZADA': '#dc3545',
-        'APROBADA': '#17a2b8',
-        'EN_PROCESO': '#ffc107'
+        'PENDIENTE': coloresCorp.azul,
+        'EN_PROCESO': coloresCorp.amarillo,
+        'PROCESADA': coloresCorp.verde,
+        'PROCESADA_PARCIAL': coloresCorp.amarillo,
+        'RECHAZADA': coloresCorp.rojo,
+        'APROBADA': coloresCorp.verde
     };
-    return colores[estado] || '#667eea';
+    return colores[estado] || coloresCorp.gris;
 }
 
 // ==========================================
-// Gráfico 2: Solicitudes por Día (BARRAS MODERNAS)
+// Gráfico 2: Solicitudes por Día (BARRAS CORPORATIVAS)
 // ==========================================
 function crearGraficoDias(datos) {
     const categorias = datos.map(item => {
@@ -181,11 +159,7 @@ function crearGraficoDias(datos) {
     const valores = datos.map(item => parseInt(item.total));
 
     Highcharts.chart('chartDias', {
-        chart: {
-            type: 'column',
-            backgroundColor: 'transparent',
-            spacing: [20, 20, 20, 20]
-        },
+        chart: { type: 'column', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
         tooltip: {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -201,33 +175,23 @@ function crearGraficoDias(datos) {
             title: { text: null },
             gridLineWidth: 0,
             minorGridLineWidth: 0,
-            labels: { style: { fontSize: '11px', fontWeight: '500', color: '#6c757d' } }
+            labels: { style: { fontSize: '11px', fontWeight: '500', color: coloresCorp.gris } }
         },
         yAxis: {
             min: 0,
             title: { text: null },
             gridLineColor: '#f0f0f0',
-            labels: { style: { fontSize: '11px', color: '#6c757d' } }
+            labels: { style: { fontSize: '11px', color: coloresCorp.gris } }
         },
         legend: { enabled: false },
         plotOptions: {
             column: {
                 borderRadius: 8,
                 borderWidth: 0,
-                shadow: {
-                    color: 'rgba(102, 126, 234, 0.3)',
-                    offsetX: 0,
-                    offsetY: 3,
-                    width: 10
-                },
+                shadow: { color: 'rgba(0, 86, 179, 0.2)', offsetX: 0, offsetY: 3, width: 10 },
                 dataLabels: {
                     enabled: true,
-                    style: {
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        color: '#667eea',
-                        textOutline: 'none'
-                    },
+                    style: { fontSize: '11px', fontWeight: '700', color: coloresCorp.azul, textOutline: 'none' },
                     format: '{point.y}'
                 },
                 pointPadding: 0.3,
@@ -237,16 +201,13 @@ function crearGraficoDias(datos) {
         series: [{
             name: 'Solicitudes Procesadas',
             data: valores,
-            color: {
-                linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                stops: [[0, '#667eea'], [1, '#764ba2']]
-            }
+            color: gradientesCorp.primario // ✅ Usa el gradiente azul corporativo
         }]
     });
 }
 
 // ==========================================
-// Gráfico 3: Por Método de Compra (DONUT MODERNO)
+// Gráfico 3: Por Método de Compra (DONUT CORPORATIVO)
 // ==========================================
 function crearGraficoMD(datos) {
     const series = datos.map(item => ({
@@ -256,11 +217,7 @@ function crearGraficoMD(datos) {
     }));
 
     Highcharts.chart('chartMD', {
-        chart: {
-            type: 'pie',
-            backgroundColor: 'transparent',
-            spacing: [20, 20, 20, 20]
-        },
+        chart: { type: 'pie', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
         tooltip: {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -277,21 +234,11 @@ function crearGraficoMD(datos) {
                 borderRadius: 8,
                 borderWidth: 3,
                 borderColor: '#ffffff',
-                shadow: {
-                    color: 'rgba(0, 0, 0, 0.1)',
-                    offsetX: 0,
-                    offsetY: 3,
-                    width: 10
-                },
+                shadow: { color: 'rgba(0, 0, 0, 0.1)', offsetX: 0, offsetY: 3, width: 10 },
                 dataLabels: {
                     enabled: true,
                     distance: -30,
-                    style: {
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        textOutline: 'none',
-                        color: '#2c3e50'
-                    },
+                    style: { fontSize: '11px', fontWeight: '600', textOutline: 'none', color: '#2c3e50' },
                     format: '<b>{point.name}</b><br>{point.percentage:.1f}%'
                 },
                 startAngle: -90,
@@ -300,37 +247,27 @@ function crearGraficoMD(datos) {
                 size: '85%'
             }
         },
-        series: [{
-            name: 'Método',
-            colorByPoint: false,
-            data: series,
-            innerSize: '55%'
-        }]
+        series: [{ name: 'Método', colorByPoint: false, data: series, innerSize: '55%' }]
     });
 }
 
 function obtenerColorPorMD(md) {
     const colores = {
-        'TRANSFERENCIA': '#28a745',
-        'CROSS_DOCKING': '#007bff',
-        'COMPRA_LOCAL': '#ffc107'
+        'TRANSFERENCIA': coloresCorp.azul,
+        'CROSS_DOCKING': coloresCorp.amarillo,
+        'COMPRA_LOCAL': coloresCorp.rojo
     };
-    return colores[md] || '#667eea';
+    return colores[md] || coloresCorp.gris;
 }
 
 // ==========================================
-// Gráfico 4: Top Tiendas (BARRAS HORIZONTALES MODERNAS)
-// ==========================================
-// ==========================================
-// Gráfico 4: Top Tiendas (BARRAS HORIZONTALES MODERNAS)
+// Gráfico 4: Top Tiendas (BARRAS HORIZONTALES CORPORATIVAS)
 // ==========================================
 function crearGraficoTiendas(datos) {
-    // Asegurarnos de tener al menos 5 tiendas (rellenar con ceros si es necesario)
     while (datos.length < 5) {
         datos.push({ id_tienda: 0, total: 0 });
     }
 
-    // Formatear como "Tienda XX"
     const categorias = datos.map(item => {
         if (item.id_tienda && item.id_tienda > 0) {
             return `Tienda ${item.id_tienda}`;
@@ -341,11 +278,7 @@ function crearGraficoTiendas(datos) {
     const valores = datos.map(item => parseInt(item.total));
 
     Highcharts.chart('chartTiendas', {
-        chart: {
-            type: 'bar',
-            backgroundColor: 'transparent',
-            spacing: [20, 20, 20, 20]
-        },
+        chart: { type: 'bar', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
         tooltip: {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -360,20 +293,13 @@ function crearGraficoTiendas(datos) {
             categories: categorias,
             title: { text: null },
             gridLineWidth: 0,
-            labels: { 
-                style: { 
-                    fontSize: '11px', 
-                    fontWeight: '500', 
-                    color: '#6c757d',
-                    textOverflow: 'ellipsis'
-                } 
-            }
+            labels: { style: { fontSize: '11px', fontWeight: '500', color: coloresCorp.gris, textOverflow: 'ellipsis' } }
         },
         yAxis: {
             min: 0,
             title: { text: null },
             gridLineColor: '#f0f0f0',
-            labels: { style: { fontSize: '11px', color: '#6c757d' } },
+            labels: { style: { fontSize: '11px', color: coloresCorp.gris } },
             reversed: true
         },
         legend: { enabled: false },
@@ -381,20 +307,10 @@ function crearGraficoTiendas(datos) {
             bar: {
                 borderRadius: 8,
                 borderWidth: 0,
-                shadow: {
-                    color: 'rgba(245, 87, 108, 0.3)',
-                    offsetX: 0,
-                    offsetY: 3,
-                    width: 10
-                },
+                shadow: { color: 'rgba(0, 86, 179, 0.2)', offsetX: 0, offsetY: 3, width: 10 },
                 dataLabels: {
                     enabled: true,
-                    style: {
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        color: '#f5576c',
-                        textOutline: 'none'
-                    },
+                    style: { fontSize: '11px', fontWeight: '700', color: coloresCorp.azul, textOutline: 'none' },
                     format: '{point.y}'
                 },
                 pointPadding: 0.3,
@@ -404,62 +320,58 @@ function crearGraficoTiendas(datos) {
         series: [{
             name: 'Solicitudes',
             data: valores,
-            color: {
-                linearGradient: { x1: 0, y1: 0, x2: 1, y2: 0 },
-                stops: [[0, '#f093fb'], [1, '#f5576c']]
-            }
+            color: gradientesCorp.info // ✅ Usa el gradiente azul corporativo
         }]
     });
 }
 
+// ==========================================
+// Gráfico 5: Top SKUs Más Solicitados (BARRAS HORIZONTALES CON DESCRIPCIÓN)
+// ==========================================
 function crearGraficoTopSKUs(datos) {
-    console.log(" Datos Top SKUs:", datos);
+    console.log("📊 Datos Top SKUs:", datos);
     
     if (!datos || datos.length === 0) {
         console.error("❌ No hay datos");
         return;
     }
 
-    // Preparar datos principales
     const dataPrincipal = datos.map((item, index) => {
         const desc = item.descripcion || 'Sin descripción';
-        const label = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
-        const medalla = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : '';
+        const sku = item.sku;
+        const label = desc.length > 50 ? desc.substring(0, 50) + '...' : desc;
         
         return {
-            name: `${medalla}${item.sku}`,
+            name: label,
             y: parseInt(item.total),
-            drilldown: item.sku,
-            color: obtenerColorPorIndex(index)
+            drilldown: sku,
+            color: obtenerColorPorIndex(index),
+            custom: { sku: sku, descripcion: desc }
         };
     });
 
-    // Preparar series de drilldown (tiendas por SKU)
     const seriesDrilldown = datos.map(item => {
         const tiendasData = (item.tiendas || []).map(t => ({
             name: `Tienda ${t.id_tienda}`,
             y: parseInt(t.total),
-            color: '#667eea'
+            color: coloresCorp.azul // ✅ Color corporativo para drilldown
         }));
         
         return {
             id: item.sku,
             name: `Tiendas - ${item.sku}`,
             data: tiendasData,
-            type: 'column'
+            type: 'bar'
         };
     });
 
-    console.log(" Series drilldown:", seriesDrilldown);
-
     Highcharts.chart('chartTopSKUs', {
         chart: {
-            type: 'column',
+            type: 'bar',
             height: 500,
             backgroundColor: 'transparent',
             events: {
                 drilldown: function(e) {
-                    console.log("🖱️ Drilldown clickeado:", e.point.drilldown);
                     if (!e.seriesOptions) {
                         const series = seriesDrilldown.find(s => s.id === e.point.drilldown);
                         if (series) {
@@ -468,87 +380,64 @@ function crearGraficoTopSKUs(datos) {
                         }
                     }
                 },
-                drillup: function() {
-                    console.log("⬆️ Drillup - volviendo");
-                }
+                drillup: function() { console.log("⬆️ Drillup - volviendo"); }
             }
         },
         title: { text: null },
         subtitle: {
-            text: '👆 Haz clic en una barra para ver qué tiendas solicitan este SKU',
+            text: '👆 Haz clic en una barra para ver qué tiendas solicitan este producto',
             align: 'left',
-            style: { color: '#6c757d', fontSize: '13px', fontStyle: 'italic' }
+            style: { color: coloresCorp.gris, fontSize: '13px', fontStyle: 'italic' }
         },
         xAxis: {
             type: 'category',
-            labels: {
-                rotation: -45,
-                style: {
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    color: '#495057'
-                }
-            }
+            title: { text: 'Producto', style: { color: coloresCorp.gris, fontSize: '12px', fontWeight: '600' } },
+            labels: { style: { fontSize: '11px', fontWeight: '500', color: '#495057' } },
+            gridLineWidth: 0
         },
         yAxis: {
             min: 0,
-            title: {
-                text: 'Solicitudes',
-                style: { color: '#6c757d', fontSize: '12px' }
-            }
+            title: { text: 'Solicitudes', style: { color: coloresCorp.gris, fontSize: '12px', fontWeight: '600' } },
+            gridLineColor: '#f0f0f0',
+            labels: { style: { fontSize: '11px', color: coloresCorp.gris } }
         },
         tooltip: {
-            headerFormat: '<b>{point.key}</b><br/>',
-            pointFormat: '{point.y} solicitudes',
             backgroundColor: 'white',
             borderColor: '#ddd',
             borderRadius: 8,
-            shadow: true
+            shadow: true,
+            headerFormat: '<b>{point.key}</b><br/>',
+            pointFormat: `<strong>SKU:</strong> {point.custom.sku}<br/><strong>Solicitudes:</strong> {point.y}<br/><em style="color: #6c757d; font-size: 11px;">Clic para ver detalle por tienda</em>`,
+            useHTML: true
         },
         plotOptions: {
-            column: {
-                pointPadding: 0.2,
+            bar: {
+                borderRadius: 6,
                 borderWidth: 0,
-                borderRadius: 8,
+                pointPadding: 0.2,
+                groupPadding: 0.1,
                 dataLabels: {
                     enabled: true,
                     format: '{point.y}',
-                    style: {
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        color: '#2c3e50'
-                    }
-                }
+                    style: { fontSize: '12px', fontWeight: 'bold', color: '#2c3e50', textOutline: 'none' }
+                },
+                shadow: { color: 'rgba(0, 0, 0, 0.1)', offsetX: 0, offsetY: 2, width: 5 }
             }
         },
-        series: [{
-            name: 'SKUs',
-            colorByPoint: true,
-            data: dataPrincipal
-        }],
+        series: [{ name: 'SKUs', colorByPoint: true, data: dataPrincipal }],
         drilldown: {
             series: seriesDrilldown,
-            activeDataLabelStyle: {
-                color: '#667eea',
-                textDecoration: 'none',
-                fontWeight: 'bold'
-            },
+            activeDataLabelStyle: { color: coloresCorp.azul, textDecoration: 'none', fontWeight: 'bold' },
             drillUpButton: {
                 relativeTo: 'spacingBox',
                 position: { y: 10, x: 0 },
                 theme: {
-                    fill: '#667eea',
+                    fill: coloresCorp.azul, // ✅ Botón de volver azul corporativo
                     stroke: 'none',
                     r: 20,
                     padding: 10,
-                    style: {
-                        color: 'white',
-                        fontWeight: 'bold',
-                        fontSize: '13px'
-                    },
-                    states: {
-                        hover: { fill: '#764ba2' }
-                    }
+                    style: { color: 'white', fontWeight: 'bold', fontSize: '13px' },
+                    states: { hover: { fill: coloresCorp.azulOscuro } }
                 },
                 text: '← Volver al Top SKUs'
             }
@@ -558,6 +447,16 @@ function crearGraficoTopSKUs(datos) {
 }
 
 function obtenerColorPorIndex(index) {
-    const colores = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#a8edea', '#ff9a9e', '#ffecd2', '#a1c4fd', '#d4fc79'];
+    // Paleta corporativa variada para las barras del top 10
+    const colores = [
+        coloresCorp.azul, 
+        coloresCorp.amarillo, 
+        coloresCorp.rojo, 
+        coloresCorp.verde, 
+        coloresCorp.azulClaro,
+        '#20c997', // Teal
+        '#fd7e14', // Naranja
+        '#6f42c1'  // Un toque de púrpura para variedad
+    ];
     return colores[index % colores.length];
 }

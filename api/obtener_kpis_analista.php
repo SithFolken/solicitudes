@@ -22,18 +22,44 @@ try {
                          AND estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')");
     $procesadasHoy = $stmt->fetch()['total'] ?? 0;
 
-    // KPI 3 & 4: Tasa de Aprobación y Total SKUs (este mes)
+    
+    // ✅ KPI 3 & 4: Tasa de Aprobación y Total SKUs (este mes) - CORREGIDO
+    // 1. Calculamos la tasa SOLO sobre los items que ya fueron procesados (APROBADO o RECHAZADO)
+    $stmt_tasa = $pdo->query("SELECT 
+                                COUNT(sc.id_detalle) as total_procesados,
+                                SUM(CASE WHEN sc.estado_item = 'APROBADO' THEN 1 ELSE 0 END) as aprobados,
+                                SUM(CASE WHEN sc.estado_item = 'RECHAZADO' THEN 1 ELSE 0 END) as rechazados
+                             FROM Analisis_Procesos.solicitudes_carga sc
+                             INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
+                             WHERE sc.estado_item IN ('APROBADO', 'RECHAZADO')
+                             AND MONTH(s.fecha_solicitud) = MONTH(CURRENT_DATE()) 
+                             AND YEAR(s.fecha_solicitud) = YEAR(CURRENT_DATE())");
+    $datosTasa = $stmt_tasa->fetch();
+    
+    $totalProcesados = $datosTasa['total_procesados'] ?? 0;
+    $aprobados = $datosTasa['aprobados'] ?? 0;
+    
+    // La tasa es: Aprobados / (Aprobados + Rechazados)
+    $tasaAprobacion = $totalProcesados > 0 ? round(($aprobados / $totalProcesados) * 100, 1) : 0;
+
+    // 2. Calculamos el total de SKUs solicitados en el mes (para el KPI de volumen)
+    $stmt_total = $pdo->query("SELECT COUNT(sc.id_detalle) as total_mes
+                               FROM Analisis_Procesos.solicitudes_carga sc
+                               INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
+                               WHERE MONTH(s.fecha_solicitud) = MONTH(CURRENT_DATE()) 
+                               AND YEAR(s.fecha_solicitud) = YEAR(CURRENT_DATE())");
+    $totalSKUs = $stmt_total->fetch()['total_mes'] ?? 0;
+
+        // ✅ KPI 5, 6 y 7: Tiempos de Respuesta (SLA 48hrs) - Solo para PENDIENTES
     $stmt = $pdo->query("SELECT 
-                            COUNT(sc.id_detalle) as total,
-                            SUM(CASE WHEN sc.estado_item IN ('APROBADO', 'PENDIENTE') THEN 1 ELSE 0 END) as aprobados
-                         FROM Analisis_Procesos.solicitudes_carga sc
-                         INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
-                         WHERE MONTH(s.fecha_solicitud) = MONTH(CURRENT_DATE()) 
-                         AND YEAR(s.fecha_solicitud) = YEAR(CURRENT_DATE())");
-    $datosSKUs = $stmt->fetch();
-    $totalSKUs = $datosSKUs['total'] ?? 0;
-    $aprobados = $datosSKUs['aprobados'] ?? 0;
-    $tasaAprobacion = $totalSKUs > 0 ? round(($aprobados / $totalSKUs) * 100, 1) : 0;
+                            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, fecha_solicitud, NOW()) <= 36 THEN 1 ELSE 0 END) as a_tiempo,
+                            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, fecha_solicitud, NOW()) > 36 AND TIMESTAMPDIFF(HOUR, fecha_solicitud, NOW()) <= 48 THEN 1 ELSE 0 END) as por_cumplirse,
+                            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, fecha_solicitud, NOW()) > 48 THEN 1 ELSE 0 END) as vencidas
+                         FROM Analisis_Procesos.solicitudes 
+                         WHERE estado_general IN ('PENDIENTE', 'EN_PROCESO')");
+    $tiempos = $stmt->fetch();
+
+    // ... (más abajo, en el array de respuesta, agrega esto al objeto 'kpis'):
 
     // Gráfico 1: Distribución por Estado
     $stmt = $pdo->query("SELECT estado_general, COUNT(*) as total 
@@ -98,13 +124,17 @@ try {
         ];
     }
 
-    echo json_encode([
+        echo json_encode([
         'success' => true,
         'kpis' => [
             'pendientes' => (int)$pendientes,
             'procesadasHoy' => (int)$procesadasHoy,
             'tasaAprobacion' => (float)$tasaAprobacion,
-            'totalSKUs' => (int)$totalSKUs
+            'totalSKUs' => (int)$totalSKUs,
+            // ✅ AGREGAR ESTOS 3 KPIs:
+            'sla_a_tiempo' => (int)($tiempos['a_tiempo'] ?? 0),
+            'sla_por_cumplirse' => (int)($tiempos['por_cumplirse'] ?? 0),
+            'sla_vencidas' => (int)($tiempos['vencidas'] ?? 0)
         ],
         'graficos' => [
             'porEstado' => $porEstado,
@@ -124,14 +154,17 @@ try {
             'pendientes' => 0,
             'procesadasHoy' => 0,
             'tasaAprobacion' => 0,
-            'totalSKUs' => 0
+            'totalSKUs' => 0,
+            'sla_a_tiempo' => 0,
+            'sla_por_cumplirse' => 0,
+            'sla_vencidas' => 0
         ],
         'graficos' => [
             'porEstado' => [],
             'porDias' => [],
             'porMD' => [],
             'topTiendas' => [],
-            'porFamilias' => []
+            'topSKUs' => []
         ]
     ]);
 }

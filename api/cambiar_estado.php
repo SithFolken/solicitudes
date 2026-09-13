@@ -22,7 +22,7 @@ try {
     }
 
     $id_solicitud = (int)$input['id_solicitud'];
-    $nuevo_estado = strtoupper(trim($input['estado']));
+    $nuevo_estado = strtoupper(trim($input['nuevo_estado'] ?? $input['estado'] ?? ''));
     $observaciones = trim(isset($input['observaciones']) ? $input['observaciones'] : '');
 
     $estados_validos = array('PENDIENTE', 'APROBADA', 'EN_PROCESO', 'PROCESADA', 'PROCESADA_PARCIAL', 'RECHAZADA');

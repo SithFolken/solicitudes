@@ -57,11 +57,11 @@ body {
 /* Logo más pequeño y centrado */
 .logo-container {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     padding: 1rem;
 }
 .logo-container img {
-    max-width: 120px;
+    max-width: 140px;
     height: auto;
     object-fit: contain;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
@@ -139,9 +139,15 @@ body {
     transform: translateY(-3px);
     box-shadow: 0 8px 25px rgba(227, 6, 19, 0.6);
     background: linear-gradient(135deg, #c00510 0%, #E30613 100%);
+    color: white;
 }
 .btn-login:active {
     transform: translateY(-1px);
+}
+.btn-login:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Footer corporativo */
@@ -178,8 +184,12 @@ body {
 @media (max-width: 768px) {
     .login-card {
         margin: 1rem;
+        padding: 2rem 1.5rem !important;
     }
     .logo-container img {
         max-width: 100px;
+    }
+    .login-title {
+        font-size: 1.5rem;
     }
 }

@@ -16,53 +16,36 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Analista - Sistema de Cargas</title>
+    
+    <!-- Bootstrap & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- HOJAS DE ESTILO CORPORATIVAS (El orden es importante) -->
     <link rel="stylesheet" href="../assets/css/dashboard.css">
     <link rel="stylesheet" href="../assets/css/dashboard_analista.css">
-    <style>
-        body { background: #f8f9fa; }
-        .navbar-custom { background: #198754 !important; }
-        .card-kpi { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); transition: transform 0.2s; }
-        .card-kpi:hover { transform: translateY(-3px); }
-        .card-kpi .icon { font-size: 2.5rem; opacity: 0.3; }
-        .bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .bg-gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
-        .bg-gradient-warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
-        .bg-gradient-info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
-        .chart-container { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .chart-container h5 { color: #2c3e50; font-weight: 600; }
-        .quick-actions { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .btn-action { border-radius: 8px; padding: 12px 20px; font-weight: 500; }
-        .page-header { background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-        .loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9); z-index: 9999;
-            display: flex; align-items: center; justify-content: center;
-        }
-    </style>
 </head>
 <body>
 
     <!-- Loading -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="text-center">
-            <div class="spinner-border text-success" style="width: 3rem; height: 3rem;"></div>
-            <p class="mt-3 text-muted">Cargando dashboard...</p>
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 text-muted fw-bold">Cargando dashboard...</p>
         </div>
     </div>
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-dark navbar-custom mb-4">
+    <!-- Navbar con estilos inline corporativos -->
+    <nav class="navbar navbar-dark mb-4" style="background: linear-gradient(135deg, #0056b3 0%, #003d82 100%) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-height: 60px;">
         <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="dashboard.php">
+            <a class="navbar-brand d-flex align-items-center" href="dashboard.php" style="color: white !important; font-weight: 700; font-size: 1.25rem;">
                 <i class="bi bi-box-seam me-2"></i> Sistema de Cargas
             </a>
             <div class="d-flex align-items-center">
-                <span class="text-white me-3">
+                <span class="me-3" style="color: white !important;">
                     <i class="bi bi-person-circle me-1"></i>
                     <?= $nombre_analista ?>
-                    <span class="badge bg-light text-dark ms-2">ANALISTA</span>
+                    <span class="badge bg-light text-dark ms-2" style="color: #0056b3 !important;">ANALISTA</span>
                 </span>
                 <a href="../logout.php" class="btn btn-outline-light btn-sm">
                     <i class="bi bi-box-arrow-right me-1"></i> Salir
@@ -80,7 +63,7 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
                     <p class="text-muted mb-0">Resumen de actividad y métricas</p>
                 </div>
                 <div>
-                    <button class="btn btn-outline-success" onclick="location.reload()">
+                    <button class="btn btn-outline-primary" onclick="location.reload()">
                         <i class="bi bi-arrow-clockwise me-2"></i>Actualizar
                     </button>
                 </div>
@@ -89,18 +72,18 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
 
         <!-- Acciones Rápidas -->
         <div class="quick-actions mb-4">
-            <h5 class="mb-3"><i class="bi bi-lightning-charge me-2"></i>Acciones Rápidas</h5>
+            <h5 class="mb-3"><i class="bi bi-lightning-charge me-2 text-corp-azul"></i>Acciones Rápidas</h5>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="gestionar_cargas.php" class="btn btn-success btn-action">
+                <a href="gestionar_cargas.php" class="btn btn-primary btn-action">
                     <i class="bi bi-clipboard-check me-2"></i>Gestionar Cargas
                 </a>
-                <a href="gestionar_cargas.php?estado=PENDIENTE" class="btn btn-warning btn-action text-dark">
+                <a href="gestionar_cargas.php?estado=PENDIENTE" class="btn btn-warning btn-action">
                     <i class="bi bi-clock-history me-2"></i>Ver Pendientes
                 </a>
             </div>
         </div>
 
-        <!-- KPIs Cards -->
+        <!-- KPIs Cards (Ahora usan los gradientes corporativos del CSS) -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
                 <div class="card card-kpi bg-gradient-primary h-100">
@@ -163,6 +146,54 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
             </div>
         </div>
 
+        <!-- KPIs de Tiempos (SLA) -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card card-kpi border-start border-4 border-success h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-uppercase mb-2 text-muted">A Tiempo</h6>
+                                <h2 class="mb-0 text-success" id="kpiSlaTiempo">-</h2>
+                                <small class="text-muted">Menos de 36 hrs</small>
+                            </div>
+                            <div class="icon text-success"><i class="bi bi-check-circle-fill"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card card-kpi border-start border-4 border-warning h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-uppercase mb-2 text-muted">Por Cumplirse</h6>
+                                <h2 class="mb-0 text-warning" id="kpiSlaUrgente">-</h2>
+                                <small class="text-muted">Entre 36 y 48 hrs</small>
+                            </div>
+                            <div class="icon text-warning"><i class="bi bi-exclamation-circle-fill"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card card-kpi border-start border-4 border-danger h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-uppercase mb-2 text-muted">Vencidas</h6>
+                                <h2 class="mb-0 text-danger" id="kpiSlaVencidas">-</h2>
+                                <small class="text-muted">Más de 48 hrs</small>
+                            </div>
+                            <div class="icon text-danger"><i class="bi bi-x-octagon-fill"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Gráficos -->
         <div class="row">
             <div class="col-md-6">
@@ -188,7 +219,7 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
 
             <div class="col-md-6">
                 <div class="chart-container">
-                    <h5><i class="bi bi-trophy me-2"></i>Top 5 Tiendas con Más Solicitudes</h5>
+                    <h5><i class="bi bi-trophy me-2"></i>Top 10 Tiendas con Más Solicitudes</h5>
                     <div id="chartTiendas" style="height: 350px;"></div>
                 </div>
             </div>

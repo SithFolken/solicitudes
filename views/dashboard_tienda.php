@@ -8,8 +8,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'tienda') {
     exit;
 }
 
-$nombre_tienda = htmlspecialchars($_SESSION['nombre'] ?? 'Tienda');
+// ✅ CORREGIDO: Usar las variables correctas de la sesión
+$nombre_tienda_real = htmlspecialchars($_SESSION['nombre_tienda'] ?? 'Tienda');
 $id_tienda = $_SESSION['id_tienda'] ?? 0;
+$nombre_usuario = htmlspecialchars($_SESSION['nombre_usuario'] ?? $_SESSION['nombre'] ?? 'Usuario');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -20,39 +22,45 @@ $id_tienda = $_SESSION['id_tienda'] ?? 0;
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/css/dashboard.css">
-    <style>
-        body { background: #f8f9fa; }
-        .navbar-custom { background: #0d6efd !important; }
-        .card-kpi { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); transition: transform 0.2s; }
-        .card-kpi:hover { transform: translateY(-3px); }
-        .card-kpi .icon { font-size: 2.5rem; opacity: 0.3; }
-        .bg-gradient-pendiente { background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; }
-        .bg-gradient-aprobada { background: linear-gradient(135deg, #0dcaf0 0%, #0d6efd 100%); color: white; }
-        .bg-gradient-procesada { background: linear-gradient(135deg, #198754 0%, #20c997 100%); color: white; }
-        .bg-gradient-rechazada { background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%); color: white; }
-        .chart-container { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .chart-container h5 { color: #2c3e50; font-weight: 600; }
-        .quick-actions { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 25px; }
-        .btn-action { border-radius: 10px; padding: 15px 25px; font-weight: 600; font-size: 16px; }
-        .page-header { background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-    </style>
 </head>
 <body>
 
-    <!-- Navbar -->
+    <!-- ✅ Navbar mejorado con información de tienda, usuario y badge de conectado -->
     <nav class="navbar navbar-dark navbar-custom mb-4">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard_tienda.php">
                 <i class="bi bi-box-seam me-2"></i> Sistema de Cargas
             </a>
-            <div class="d-flex align-items-center">
-                <span class="text-white me-3">
-                    <i class="bi bi-person-circle me-1"></i>
-                    <?= $nombre_tienda ?>
-                    <span class="badge bg-light text-dark ms-2">TIENDA</span>
-                </span>
-                <a href="../logout.php" class="btn btn-outline-light btn-sm">
-                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Información de la tienda y usuario -->
+                <div class="user-info text-white">
+                    <!-- Badge de conectado -->
+                    <span class="badge badge-conectado d-flex align-items-center gap-1">
+                        <span class="dot-pulse"></span>
+                        Conectado
+                    </span>
+                    
+                    <!-- Nombre de la tienda -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="tienda-nombre">
+                            <i class="bi bi-shop me-1"></i><?= $nombre_tienda_real ?>
+                        </span>
+                        <span class="tienda-id">(ID: <?= $id_tienda ?>)</span>
+                    </div>
+                    
+                    <!-- Separador -->
+                    <span class="separator">|</span>
+                    
+                    <!-- Nombre del usuario -->
+                    <span class="usuario-nombre">
+                        <i class="bi bi-person-circle me-1"></i><?= $nombre_usuario ?>
+                    </span>
+                </div>
+                
+                <!-- Botón de salir -->
+                <a href="../logout.php" class="btn btn-outline-light btn-sm ms-2" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right"></i> Salir
                 </a>
             </div>
         </div>
