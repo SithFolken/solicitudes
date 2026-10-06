@@ -1,0 +1,98 @@
+/* ==========================================
+   assets/css/logout.css
+   Estilos para la pantalla de cierre de sesión
+   ========================================== */
+
+body {
+    background: linear-gradient(135deg, #0054A6 0%, #003d7a 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.logout-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.logout-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: white;
+    font-size: 2.5rem;
+    box-shadow: 0 8px 20px rgba(25, 135, 84, 0.3);
+}
+
+.logout-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 10px;
+    margin-top: 0;
+}
+
+.logout-subtitle {
+    color: #6c757d;
+    font-size: 1rem;
+    margin-bottom: 25px;
+}
+
+.logout-info {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid #0054A6;
+    text-align: left;
+}
+
+.logout-info p {
+    margin: 5px 0;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.logout-info strong {
+    color: #0054A6;
+}
+
+.progress-bar-custom {
+    height: 4px;
+    background: #e9ecef;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.progress-bar-custom .bar {
+    height: 100%;
+    background: linear-gradient(90deg, #198754 0%, #0054A6 100%);
+    width: 0%;
+    animation: progress 3s linear forwards;
+}
+
+@keyframes progress {
+    from { width: 0%; }
+    to { width: 100%; }
+}

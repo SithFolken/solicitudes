@@ -47,8 +47,8 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
                     <?= $nombre_analista ?>
                     <span class="badge bg-light text-dark ms-2" style="color: #0056b3 !important;">ANALISTA</span>
                 </span>
-                <a href="../logout.php" class="btn btn-outline-light btn-sm">
-                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+                <a href="#" class="btn btn-outline-light btn-sm" onclick="confirmarSalida(event)" title="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right"></i> Salir
                 </a>
             </div>
         </div>
@@ -240,6 +240,7 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
     <script src="https://code.highcharts.com/modules/drilldown.js"></script>
     <script src="https://code.highcharts.com/modules/exporting.js"></script>
     <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+     <script src="../assets/js/global.js"></script>
     <script src="../assets/js/dashboard_analista.js"></script>
 </body>
 </html>

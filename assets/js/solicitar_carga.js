@@ -544,19 +544,17 @@ async function mostrarPreviewSolicitud() {
         
         Swal.close();
         
-        if (!data.success) {
+                if (!data.success) {
             Swal.fire({
-                icon: 'warning',
-                title: 'Producto no encontrado',
-                text: 'No se encontraron datos del producto en el sugerido diario. ¿Deseas continuar de todas formas?',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, continuar',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, observaciones);
-                }
+                icon: 'error', // Cambiado a error para indicar que es un bloqueo definitivo
+                title: 'Producto Fuera de Mix',
+                html: 'Se debe solicitar conexión al <strong>Jefe de Línea</strong> para poder generar la carga de este producto.',
+                confirmButtonText: 'Aceptar', // Único botón disponible
+                confirmButtonColor: '#dc3545' // Color rojo para indicar detención
             });
+            
+            // ⚠️ IMPORTANTE: Se eliminó el .then() porque NUNCA debe continuar 
+            // a mostrarModalSinDetalles si el producto no está en el sugerido.
             return;
         }
 

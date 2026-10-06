@@ -19,11 +19,14 @@ if (!$sku || $id_tienda <= 0) {
 }
 
 try {
+    // ✅ CORREGIDO: La fórmula del SDS es AHORA IDÉNTICA a la del Árbol de Decisión
+    // SDS = (disp_tda + pend_tda) / PV6
     $sql = "SELECT 
                 sd.sku,
                 sd.descripcion_producto,
-                ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
-                ROUND((COALESCE(vta_sem_6, 0) + COALESCE(vta_sem_5, 0) + COALESCE(vta_sem_4, 0)) / 3, 2) as PV3,
+                -- Calcular PV6 exactamente como lo hace el Árbol de Decisión
+                ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as PV6,
+                ROUND((COALESCE(sd.vta_sem_6, 0) + COALESCE(sd.vta_sem_5, 0) + COALESCE(sd.vta_sem_4, 0)) / 3, 2) as PV3,
                 sd.capacity,
                 sd.lead_time_total as lt,
                 sd.disp as disp_tda,
@@ -38,7 +41,16 @@ try {
                 sd.vta_sem_6 as v6,
                 sd.MD as md_defecto,
                 sd.unid_pallet,
-                ROUND((COALESCE(sd.disp, 0) + COALESCE(sd.pend, 0)) / NULLIF(sd.PV6, 0), 1) as sds_actual
+                -- ✅ FÓRMULA EXACTA DEL ÁRBOL DE DECISIÓN:
+                CASE 
+                    WHEN ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) > 0 
+                    THEN ROUND(
+                        (COALESCE(sd.disp, 0) + COALESCE(sd.pend, 0)) / 
+                        ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2), 
+                        1
+                    )
+                    ELSE 999 
+                END as sds_actual
             FROM rct.sugerido_diario sd
             WHERE sd.id_tienda = :id_tienda AND sd.sku = :sku
             ORDER BY sd.fecha DESC LIMIT 1";
@@ -48,12 +60,16 @@ try {
     $producto = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($producto) {
+        // Log para depuración: verificar que los valores coincidan con el servidor
+        error_log("SDS Preview - SKU: {$producto['sku']}, Disp: {$producto['disp_tda']}, Pend: {$producto['pend_tda']}, PV6: {$producto['PV6']}, SDS Calculado: {$producto['sds_actual']}");
+        
         echo json_encode(['success' => true, 'producto' => $producto]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Producto no encontrado']);
+        echo json_encode(['success' => false, 'message' => 'Producto no encontrado en el sugerido diario']);
     }
     
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Error de base de datos']);
+    error_log("Error obtener_detalle_producto: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Error de base de datos: ' . $e->getMessage()]);
 }
 ?>

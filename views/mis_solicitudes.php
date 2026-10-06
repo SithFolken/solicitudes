@@ -53,7 +53,7 @@ $nombre_usuario = htmlspecialchars($_SESSION['nombre_usuario'] ?? $_SESSION['nom
                     </span>
                 </div>
                 
-                <a href="../logout.php" class="btn btn-outline-light btn-sm" title="Cerrar sesión">
+                <a href="#" class="btn btn-outline-light btn-sm" onclick="confirmarSalida(event)" title="Cerrar sesión">
                     <i class="bi bi-box-arrow-right"></i> Salir
                 </a>
             </div>
@@ -246,6 +246,7 @@ $nombre_usuario = htmlspecialchars($_SESSION['nombre_usuario'] ?? $_SESSION['nom
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+     <script src="../assets/js/global.js"></script>
     <script src="../assets/js/mis_solicitudes.js"></script>
     <script src="../assets/js/sku-tooltip.js"></script>
 </body>

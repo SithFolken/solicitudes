@@ -59,7 +59,7 @@ $nombre_usuario = htmlspecialchars($_SESSION['nombre_usuario'] ?? $_SESSION['nom
                 </div>
                 
                 <!-- Botón de salir -->
-                <a href="../logout.php" class="btn btn-outline-light btn-sm ms-2" title="Cerrar sesión">
+                <a href="#" class="btn btn-outline-light btn-sm" onclick="confirmarSalida(event)" title="Cerrar sesión">
                     <i class="bi bi-box-arrow-right"></i> Salir
                 </a>
             </div>
@@ -179,6 +179,7 @@ $nombre_usuario = htmlspecialchars($_SESSION['nombre_usuario'] ?? $_SESSION['nom
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="../assets/js/global.js"></script>
     <script src="../assets/js/dashboard_tienda.js"></script>
 </body>
 </html>

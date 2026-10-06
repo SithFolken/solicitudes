@@ -140,9 +140,16 @@ try {
     // ==========================================
     // OBTENER DATOS DEL SUGERIDO DIARIO
     // ==========================================
-    $sql_sug = "SELECT 
+        $sql_sug = "SELECT 
                     ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
-                    disp as disp_tda, pend as pend_tda, disp_bod, pend_bod, MD as MD_sugerido
+                    disp as disp_tda, 
+                    pend as pend_tda, 
+                    disp_bod, 
+                    pend_bod, 
+                    MD as MD_sugerido,
+                    -- ✅ AGREGADO: Columnas necesarias para el Árbol de Decisión (Bypass y Lead Time)
+                    vta_sem_1, vta_sem_2, vta_sem_3,
+                    lead_time_total
                 FROM rct.sugerido_diario 
                 WHERE id_tienda = :id_tienda AND sku = :sku
                 ORDER BY fecha DESC LIMIT 1";

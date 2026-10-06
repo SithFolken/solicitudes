@@ -12,34 +12,87 @@ require_once 'SimpleXLSXGen.php';
 use Shuchkin\SimpleXLSXGen;
 require_once '../config/database.php';
 
-$ciclo_corte = isset($_GET['ciclo']) ? $_GET['ciclo'] : date('Y-m-d');
-
 try {
-    // 1. Obtener solicitudes procesadas de este ciclo
-    $sql_solicitudes = "SELECT id_solicitud, id_tienda, usuario_tienda, estado_general 
-                        FROM Analisis_Procesos.solicitudes 
-                        WHERE ciclo_corte = :ciclo 
-                          AND estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')";
-    $stmt = $pdo->prepare($sql_solicitudes);
-    $stmt->execute(['ciclo' => $ciclo_corte]);
-    $solicitudes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // ==========================================
+    // ✅ OBTENER FECHAS ENVIADAS POR EL JAVASCRIPT
+    // ==========================================
+    
+    $ciclo_nombre = isset($_GET['ciclo']) ? $_GET['ciclo'] : date('Y-m-d');
+    
+    // ✅ El PHP DEBE recibir las fechas del JS. Si no, es un error.
+    if (!isset($_GET['fecha_inicio']) || !isset($_GET['fecha_fin'])) {
+        throw new Exception('No se recibieron las fechas del ciclo. Por favor, intenta nuevamente desde el navegador.');
+    }
+    
+    $fecha_corte_inicio = $_GET['fecha_inicio'];
+    $fecha_corte_fin = $_GET['fecha_fin'];
+    
+    // Log para depuración (puedes verlo en tu archivo de logs de PHP)
+    error_log("Excel - Ciclo: $ciclo_nombre, Desde: $fecha_corte_inicio, Hasta: $fecha_corte_fin");
 
-    // Validación para el frontend
+    // ==========================================
+    // MODO VALIDACIÓN (desde el frontend)
+    // ==========================================
     if (isset($_GET['validar']) && $_GET['validar'] == '1') {
-        if (empty($solicitudes)) {
+        
+        $sql_validar = "SELECT COUNT(DISTINCT s.id_solicitud) as total
+                        FROM Analisis_Procesos.solicitudes s 
+                        WHERE s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
+                        AND s.fecha_solicitud >= :inicio
+                        AND s.fecha_solicitud < :fin";
+        
+        $stmt_validar = $pdo->prepare($sql_validar);
+        $stmt_validar->execute([
+            'inicio' => $fecha_corte_inicio,
+            'fin' => $fecha_corte_fin
+        ]);
+        
+        $resultado = $stmt_validar->fetch();
+        
+        if ($resultado['total'] == 0) {
             echo json_encode([
-                'success' => false, 
-                'tiene_datos' => false, 
-                'message' => 'No hay solicitudes procesadas para este ciclo.'
+                'success' => false,
+                'tiene_datos' => false,
+                'message' => "No hay solicitudes procesadas en el ciclo:<br><br>" .
+                            "<strong>Desde:</strong> " . str_replace(' ', ' ', $fecha_corte_inicio) . "<br>" .
+                            "<strong>Hasta:</strong> " . str_replace(' ', ' ', $fecha_corte_fin)
             ]);
         } else {
-            echo json_encode(['success' => true, 'tiene_datos' => true]);
+            echo json_encode([
+                'success' => true,
+                'tiene_datos' => true,
+                'total_solicitudes' => $resultado['total'],
+                'ciclo_desde' => $fecha_corte_inicio,
+                'ciclo_hasta' => $fecha_corte_fin
+            ]);
         }
         exit;
     }
+    
+    // ==========================================
+    // GENERAR EXCEL
+    // ==========================================
+
+    // 1. Obtener solicitudes del ciclo usando las fechas exactas del JS
+    $sql_solicitudes = "SELECT id_solicitud, id_tienda, usuario_tienda, estado_general, fecha_solicitud
+                        FROM Analisis_Procesos.solicitudes 
+                        WHERE estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
+                        AND fecha_solicitud >= :inicio
+                        AND fecha_solicitud < :fin
+                        ORDER BY fecha_solicitud";
+    
+    $stmt = $pdo->prepare($sql_solicitudes);
+    $stmt->execute([
+        'inicio' => $fecha_corte_inicio,
+        'fin' => $fecha_corte_fin
+    ]);
+    $solicitudes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($solicitudes)) {
-        throw new Exception('No hay solicitudes procesadas para este ciclo.');
+        throw new Exception("No hay solicitudes procesadas en el período:<br><br>" .
+                          "<strong>Desde:</strong> $fecha_corte_inicio<br>" .
+                          "<strong>Hasta:</strong> $fecha_corte_fin<br><br>" .
+                          "Verifica que las solicitudes hayan sido procesadas en este horario.");
     }
 
     $ids_solicitudes = array_column($solicitudes, 'id_solicitud');
@@ -85,17 +138,13 @@ try {
         }
     }
 
-    // ==========================================
-    // 4. GENERAR EXCEL (Versión 100% compatible)
-    // ==========================================
-    
+    // 4. GENERAR EXCEL
     $primera = true;
     $xlsx = null;
 
     // --- HOJA 1: TRANSFERENCIA ---
     if (!empty($items_por_md['TRANSFERENCIA'])) {
         $rows_trf = [];
-        // La primera fila son los encabezados
         $rows_trf[] = ['TIENDA', 'CODIGO', 'DIGITO', 'CANTIDAD', 'R:'];
         
         foreach ($items_por_md['TRANSFERENCIA'] as $i) {
@@ -165,25 +214,21 @@ try {
         }
     }
 
-    // Verificar que se haya creado al menos una hoja
     if ($xlsx === null) {
         throw new Exception('No hay items aprobados para generar el Excel en este ciclo.');
     }
 
-    // 5. Marcar solicitudes como generadas en Excel
+    // 5. Marcar solicitudes como generadas
     $sql_mark = "UPDATE Analisis_Procesos.solicitudes 
                  SET fecha_generacion_excel = NOW(),
                      usuario_genero_excel = :usuario
-                 WHERE ciclo_corte = :ciclo
-                   AND estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')";
+                 WHERE id_solicitud IN ($placeholders)";
     $stmt_mark = $pdo->prepare($sql_mark);
-    $stmt_mark->execute([
-        'usuario' => $_SESSION['user_id'],
-        'ciclo' => $ciclo_corte
-    ]);
+    $stmt_mark->execute(array_merge(['usuario' => $_SESSION['user_id']], $ids_solicitudes));
 
     // 6. Descargar archivo
-    $nombre_archivo = "CARGA_CICLO_" . str_replace('-', '', $ciclo_corte) . "_" . date('His') . ".xlsx";
+    $ciclo_limpio = str_replace('-', '', $ciclo_nombre);
+    $nombre_archivo = "CARGA_CICLO_{$ciclo_limpio}_" . date('His') . ".xlsx";
     $xlsx->downloadAs($nombre_archivo);
     exit;
 

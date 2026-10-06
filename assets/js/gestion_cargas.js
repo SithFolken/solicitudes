@@ -259,27 +259,57 @@ function limpiarFiltros() {
 // ==========================================
 // Exportar Excel del Ciclo (Sin cambios)
 // ==========================================
+// ==========================================
+// Exportar Excel del Ciclo (CORREGIDO)
+// ==========================================
 function exportarExcel() {
     const hoy = new Date();
     const horaActual = hoy.getHours() + (hoy.getMinutes() / 60);
-    const cicloCorte = hoy.toISOString().split('T')[0];
-    const yaPasoCorte = horaActual >= 13;
+    const fechaHoy = hoy.toISOString().split('T')[0];
     
-    let mensajeHora = '';
-    if (yaPasoCorte) {
-        mensajeHora = `<div class="alert alert-warning mt-2 mb-0"><i class="bi bi-exclamation-triangle me-2"></i><strong>Ya pasó la hora de corte (13:00 hrs)</strong><br>Las solicitudes procesadas después de las 13:00 hrs se incluirán en el ciclo de mañana.</div>`;
+    // Calcular el período correcto según la hora
+    let fechaInicio, fechaFin, cicloNombre, mensajeHora;
+    
+    if (horaActual < 13) {
+        // Antes de las 13:00: ciclo es desde ayer 13:00 hasta hoy 13:00
+        const ayer = new Date(hoy);
+        ayer.setDate(ayer.getDate() - 1);
+        const fechaAyer = ayer.toISOString().split('T')[0];
+        
+        fechaInicio = `${fechaAyer} 13:00:00`;
+        fechaFin = `${fechaHoy} 13:00:00`;
+        cicloNombre = fechaHoy;
+        mensajeHora = '';
+    } else {
+        // Después de las 13:00: ciclo es desde hoy 13:00 hasta mañana 13:00
+        const manana = new Date(hoy);
+        manana.setDate(manana.getDate() + 1);
+        const fechaManana = manana.toISOString().split('T')[0];
+        
+        fechaInicio = `${fechaHoy} 13:00:00`;
+        fechaFin = `${fechaManana} 13:00:00`;
+        cicloNombre = fechaManana;
+        mensajeHora = `
+            <div class="alert alert-warning mt-2 mb-0">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Ya pasó la hora de corte (13:00 hrs)</strong><br>
+                Las solicitudes procesadas después de las 13:00 hrs se incluirán en el ciclo de mañana.
+            </div>
+        `;
     }
     
     Swal.fire({
         title: '¿Generar Excel del Ciclo?',
-        html: `<p>Se generará el archivo Excel con todas las solicitudes procesadas del ciclo:</p>
-               <div class="alert alert-info text-start">
-                   <strong>📅 Ciclo de Corte:</strong> ${cicloCorte}<br>
-                   <strong>⏰ Período:</strong> Desde ${cicloCorte} 13:00 hrs<br>
-                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hasta ${new Date(hoy.getTime() + 86400000).toISOString().split('T')[0]} 13:00 hrs<br>
-                   <strong>🕐 Hora actual:</strong> ${hoy.toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})} hrs
-                   ${mensajeHora}
-               </div>`,
+        html: `
+            <p>Se generará el archivo Excel con todas las solicitudes procesadas del ciclo:</p>
+            <div class="alert alert-info text-start">
+                <strong>📅 Ciclo de Corte:</strong> ${cicloNombre}<br>
+                <strong>⏰ Período:</strong> Desde ${fechaInicio}<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hasta ${fechaFin}<br>
+                <strong>🕐 Hora actual:</strong> ${hoy.toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})} hrs
+                ${mensajeHora}
+            </div>
+        `,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, generar Excel',
@@ -288,20 +318,49 @@ function exportarExcel() {
         cancelButtonColor: '#6c757d'
     }).then((result) => {
         if (result.isConfirmed) {
-            Swal.fire({ title: 'Verificando datos...', text: 'Buscando solicitudes procesadas en este ciclo', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
-            fetch(`../api/generar_excel_carga.php?ciclo=${cicloCorte}&validar=1`)
+            Swal.fire({
+                title: 'Verificando datos...',
+                text: 'Buscando solicitudes procesadas en este ciclo',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            // ✅ CORRECCIÓN CLAVE: Enviar las fechas exactas codificadas en la URL
+            const urlValidar = `../api/generar_excel_carga.php?ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}&validar=1`;
+            
+            fetch(urlValidar)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.tiene_datos) {
                         Swal.close();
-                        window.open(`../api/generar_excel_carga.php?ciclo=${cicloCorte}`, '_blank');
-                        Swal.fire({ icon: 'success', title: '¡Excel Generado!', text: `Se exportaron ${data.total_solicitudes || 'las'} solicitudes del ciclo.`, timer: 3000, showConfirmButton: false });
+                        // ✅ Enviar las mismas fechas exactas para la descarga real
+                        const urlDescarga = `../api/generar_excel_carga.php?ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}`;
+                        window.open(urlDescarga, '_blank');
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Excel Generado!',
+                            text: `Se exportaron ${data.total_solicitudes || 'las'} solicitudes del ciclo.`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        }).then(() => {
+                            cargarSolicitudes(); // Recargar la tabla
+                        });
                     } else {
                         Swal.close();
-                        Swal.fire({ icon: 'warning', title: data.hora_corte ? 'Hora de corte superada' : 'Sin datos para exportar', html: data.message || 'No se encontraron solicitudes procesadas para este ciclo.', confirmButtonText: 'Entendido', confirmButtonColor: '#ffc107' });
+                        Swal.fire({
+                            icon: 'warning',
+                            title: data.hora_corte ? 'Hora de corte superada' : 'Sin datos para exportar',
+                            html: data.message || 'No se encontraron solicitudes procesadas para este ciclo.',
+                            confirmButtonText: 'Entendido',
+                            confirmButtonColor: '#ffc107'
+                        });
                     }
                 })
-                .catch(error => { Swal.close(); Swal.fire('Error', 'No se pudo conectar con el servidor', 'error'); });
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+                });
         }
     });
 }
