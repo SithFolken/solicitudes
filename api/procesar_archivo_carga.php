@@ -139,13 +139,10 @@ try {
                     ORDER BY s.id_solicitud";
         
         $params_val = array_merge([$usuario_tienda], $skus_del_archivo);
-        error_log("SQL Validación Masiva: $sql_val");
         
         $stmt_val = $pdo->prepare($sql_val);
         $stmt_val->execute($params_val);
         $skus_pendientes = $stmt_val->fetchAll();
-        
-        error_log("SKUs pendientes encontrados: " . count($skus_pendientes));
         
         if (!empty($skus_pendientes)) {
             $skus_conflictos = array_unique(array_map(function($item) {
@@ -156,8 +153,6 @@ try {
             $estado_conflicto = $skus_pendientes[0]['estado_general'];
             $fecha_conflicto = $skus_pendientes[0]['fecha'];
             
-            error_log("BLOQUEADO - SKUs conflictivos: " . implode(', ', $skus_conflictos));
-            
             echo json_encode([
                 'success' => false,
                 'message' => "Los siguientes SKUs ya están en la solicitud **#{$id_solicitud_conflicto}** (estado: **{$estado_conflicto}**): <strong>" . implode(', ', $skus_conflictos) . "</strong>. Espera a que sean procesados antes de solicitarlos nuevamente.",
@@ -167,8 +162,6 @@ try {
             ]);
             exit;
         }
-        
-        error_log("VALIDACIÓN MASIVA PASÓ - Ningún SKU está pendiente");
         
     } catch (PDOException $e_val) {
         error_log("ERROR en validación masiva: " . $e_val->getMessage());
@@ -195,14 +188,12 @@ try {
     
     $id_solicitud_padre = $pdo->lastInsertId();
     
-    error_log("ID PADRE CREADO: $id_solicitud_padre");
-    
     if (!$id_solicitud_padre || $id_solicitud_padre <= 0) {
         throw new Exception('No se pudo crear la solicitud padre');
     }
 
     // ==========================================
-    // PROCESAR DETALLES
+    // PROCESAR DETALLES (CON LÓGICA MIN Y QUIEBRE)
     // ==========================================
     error_log("PROCESANDO DETALLES - Padre ID: $id_solicitud_padre");
     
@@ -213,7 +204,7 @@ try {
     
     foreach ($datos_filas as $fila) {
         $sku = $fila['sku'];
-        $cantidad = $fila['cantidad'];
+        $cantidad_original = $fila['cantidad'];
         $descripcion = $fila['descripcion'];
         
         if (in_array($sku, $skus_procesados)) continue;
@@ -227,33 +218,51 @@ try {
             $descripcion = $prod ? $prod['descripcion_producto'] : 'Sin descripción';
         }
         
+        // 1. Obtener datos del sugerido (incluyendo MIN con backticks)
         $sql_sug = "SELECT 
                         ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
-                        disp as disp_tda, pend as pend_tda, disp_bod, pend_bod, MD as MD_sugerido
+                        disp as disp_tda, 
+                        pend as pend_tda, 
+                        disp_bod, 
+                        pend_bod, 
+                        MD as MD_sugerido,
+                        vta_sem_1, vta_sem_2, vta_sem_3,
+                        lead_time_total,
+                        COALESCE(`MIN`, 0) as min_despacho
                     FROM rct.sugerido_diario 
                     WHERE id_tienda = :id_tienda AND sku = :sku
                     ORDER BY fecha DESC LIMIT 1";
+                    
         $stmt_sug = $pdo->prepare($sql_sug);
         $stmt_sug->execute(['id_tienda' => $id_tienda, 'sku' => $sku]);
         $datos_sugerido = $stmt_sug->fetch();
-        
-        $evaluacion = ArbolDecision::evaluar($sku, $cantidad, $datos_sugerido, $pdo);
+
+        // 2. Evaluar con el Árbol de Decisión (él ya se encarga de redondear la cantidad si es necesario y de las excepciones de quiebre)
+        $evaluacion = ArbolDecision::evaluar($sku, $cantidad_original, $datos_sugerido, $pdo);
         
         $estado_item = $evaluacion['puede_cargar'] ? 'PENDIENTE' : 'RECHAZADO';
-        $motivo = $evaluacion['puede_cargar'] ? '' : $evaluacion['motivo_rechazo'];
         
+        // 3. Preparar el motivo/campo_cambios
+        $motivo = $evaluacion['motivo_rechazo'] ?? '';
+        if ($evaluacion['puede_cargar'] && !empty($evaluacion['nota_aprobacion'])) {
+            // Si fue aprobado y hay nota (ej: ajuste por MIN), la guardamos
+            $motivo = $evaluacion['nota_aprobacion'];
+        }
+        
+        // 4. Insertar en la base de datos
         $sql_detalle = "INSERT INTO Analisis_Procesos.solicitudes_carga 
                        (id_solicitud, sku, descripcion_producto, carga_solicitada, carga_final, estado_item, campo_cambios, id_familia) 
-                       VALUES (:id_solicitud, :sku, :descripcion, :cantidad, 0, :estado_item, :motivo, :id_familia)";
+                       VALUES (:id_solicitud, :sku, :descripcion, :cantidad_solicitada, :cantidad_final, :estado_item, :motivo, :id_familia)";
         
         $stmt_detalle = $pdo->prepare($sql_detalle);
         $stmt_detalle->execute([
             'id_solicitud' => $id_solicitud_padre,
             'sku' => $sku,
             'descripcion' => $descripcion,
-            'cantidad' => $cantidad,
+            'cantidad_solicitada' => $cantidad_original,               // La que vino en el Excel
+            'cantidad_final' => $evaluacion['cantidad_autorizada'],   // ✅ La ajustada por el Árbol (o la misma si no hubo ajuste)
             'estado_item' => $estado_item,
-            'motivo' => $motivo,
+            'motivo' => $motivo,                                      // ✅ Aquí queda registrado el ajuste o el rechazo
             'id_familia' => $id_familia
         ]);
         
@@ -261,15 +270,26 @@ try {
             throw new Exception("No se pudo insertar el detalle para SKU: $sku");
         }
         
-        $id_detalle = $pdo->lastInsertId();
-        error_log("Detalle insertado - ID: $id_detalle, SKU: $sku, Padre: $id_solicitud_padre");
-        
+        // 5. Registrar resultado para el resumen
         if ($evaluacion['puede_cargar']) {
             $detalles_guardados++;
-            $resultados[] = ['sku' => $sku, 'descripcion' => $descripcion, 'cantidad' => $cantidad, 'estado' => 'GUARDADO'];
+            $resultados[] = [
+                'sku' => $sku, 
+                'descripcion' => $descripcion, 
+                'cantidad_solicitada' => $cantidad_original,
+                'cantidad_autorizada' => $evaluacion['cantidad_autorizada'],
+                'estado' => 'GUARDADO',
+                'nota' => $evaluacion['nota_aprobacion'] ?? ''
+            ];
         } else {
             $detalles_rechazados++;
-            $resultados[] = ['sku' => $sku, 'descripcion' => $descripcion, 'cantidad' => $cantidad, 'estado' => 'RECHAZADO', 'motivo' => $motivo];
+            $resultados[] = [
+                'sku' => $sku, 
+                'descripcion' => $descripcion, 
+                'cantidad' => $cantidad_original, 
+                'estado' => 'RECHAZADO', 
+                'motivo' => $motivo
+            ];
         }
     }
     

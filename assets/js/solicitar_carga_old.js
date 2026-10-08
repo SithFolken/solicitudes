@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Event listeners del formulario manual
     const formManual = document.getElementById('formSolicitudManual');
     if (formManual) {
+        // ✅ ELIMINADO: El listener 'submit' porque ahora usamos onclick="mostrarPreviewSolicitud()" en los botones
+        
         // Autocomplete dinámico (formulario normal)
         const inputSku = document.getElementById('sku');
         if (inputSku) {
@@ -506,9 +508,8 @@ async function buscarSugerenciasSKU(termino) {
     }
 }
 
-
 // ==========================================
-// 1. Mostrar Vista Previa (CON VALIDACIÓN DE QUIEBRE Y MIN)
+// 1. Mostrar Vista Previa antes de Enviar
 // ==========================================
 async function mostrarPreviewSolicitud() {
     const familiaSelect = document.getElementById('idFamilia'); 
@@ -516,10 +517,10 @@ async function mostrarPreviewSolicitud() {
     
     const sku = document.getElementById('sku')?.value || '';
     const descripcion = document.getElementById('descripcion')?.value || 'Sin descripción';
-    const cantidadInput = document.getElementById('cantidad')?.value || '0';
+    const cantidad = document.getElementById('cantidad')?.value || '0';
     const observaciones = document.getElementById('observaciones')?.value || '';
 
-    if (!sku || parseInt(cantidadInput) <= 0) {
+    if (!sku || parseInt(cantidad) <= 0) {
         Swal.fire({ 
             icon: 'warning', 
             title: 'Campos incompletos', 
@@ -529,6 +530,7 @@ async function mostrarPreviewSolicitud() {
         return;
     }
 
+    // Mostrar loading
     Swal.fire({
         title: 'Cargando detalles...',
         allowOutsideClick: false,
@@ -536,6 +538,7 @@ async function mostrarPreviewSolicitud() {
     });
 
     try {
+        // Obtener detalles completos del producto
         const response = await fetch(`../api/obtener_detalle_producto.php?sku=${encodeURIComponent(sku)}`);
         const data = await response.json();
         
@@ -556,83 +559,20 @@ async function mostrarPreviewSolicitud() {
         
         // Calcular pallets
         const unidPallet = parseFloat(producto.unid_pallet) || 1;
+        const palletsExactos = parseFloat(cantidad) > 0 ? (parseFloat(cantidad) / unidPallet) : 0;
         
-        // 1️⃣ Obtener MIN y ajustar cantidad si es necesario
-        const minDespacho = parseFloat(producto.min_despacho) || 0;
-        let cantidadFinal = parseInt(cantidadInput);
-        let mensajeMid = '';
-        let cantidadOriginal = cantidadFinal;
-        
-        if (minDespacho > 0 && cantidadFinal < minDespacho) {
-            const multiplos = Math.ceil(cantidadFinal / minDespacho);
-            cantidadFinal = multiplos * minDespacho;
-            
-            mensajeMid = `
-                <div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <strong>Ajuste MIN:</strong> ${cantidadOriginal} → ${cantidadFinal} (Mín: ${minDespacho})
-                </div>
-            `;
-        }
-        
-        const palletsExactos = cantidadFinal > 0 ? (cantidadFinal / unidPallet) : 0;
-        
-        // Calcular SDS Proyectado
+        // ✅ NUEVO: Calcular SDS Proyectado para mostrar en la tabla
         const stockActual = (parseFloat(producto.disp_tda) || 0) + (parseFloat(producto.pend_tda) || 0);
         const pv6 = parseFloat(producto.PV6) || 0;
-        const stockProyectado = stockActual + cantidadFinal;
+        const cantidadSolicitada = parseFloat(cantidad) || 0;
+        const stockProyectado = stockActual + cantidadSolicitada;
         const sdsProyectada = pv6 > 0 ? (stockProyectado / pv6) : 999;
-
-        // 2️⃣ NUEVO: Validación de límites para productos en QUIEBRE (stock = 0)
-        const esQuiebre = stockActual === 0;
-        let alertaQuiebre = '';
-
-        if (esQuiebre) {
-            let limiteMaximo = null;
-            let tipoLimite = '';
-            
-            // Nivel 1: 5x MIN
-            if (minDespacho > 0) {
-                limiteMaximo = minDespacho * 5;
-                tipoLimite = `5x MIN (${minDespacho})`;
-            } 
-            // Nivel 2: 12 semanas de PV6
-            else if (pv6 > 0) {
-                limiteMaximo = Math.ceil(pv6 * 12);
-                tipoLimite = `12 semanas de stock`;
-            } 
-            // Nivel 3: 12 semanas de promedio de ventas
-            else {
-                const promedioSem = ((parseFloat(producto.v1)||0) + (parseFloat(producto.v2)||0) + (parseFloat(producto.v3)||0)) / 3;
-                if (promedioSem > 0) {
-                    limiteMaximo = Math.ceil(promedioSem * 12);
-                    tipoLimite = '12 semanas (promedio ventas)';
-                } 
-                // Nivel 4: Tope absoluto si no hay datos
-                else {
-                    limiteMaximo = 1000;
-                    tipoLimite = 'tope absoluto (sin datos)';
-                }
-            }
-            
-            // Si la cantidad final supera el límite calculado, mostrar alerta roja
-            if (cantidadFinal > limiteMaximo) {
-                alertaQuiebre = `
-                    <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        <strong>⚠️ Cantidad excesiva para producto en quiebre:</strong><br>
-                        Solicitado: <strong>${cantidadFinal}</strong> unidades excede el máximo permitido de <strong>${limiteMaximo}</strong> (${tipoLimite}).<br>
-                        <small>El sistema rechazará esta solicitud al enviar. Reduzca la cantidad.</small>
-                    </div>
-                `;
-            }
-        }
         
         // Llenar datos básicos
         document.getElementById('confirm_familia').textContent = familiaTexto;
         document.getElementById('confirm_tienda').textContent = (typeof NOMBRE_TIENDA !== 'undefined' ? NOMBRE_TIENDA : 'Tienda') + (typeof ID_TIENDA !== 'undefined' && ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
         
-        // Construir tabla
+        // Construir tabla con TODOS los detalles 
         const tbody = document.getElementById('confirm_tabla_detalle');
         tbody.innerHTML = `
             <tr>
@@ -650,13 +590,13 @@ async function mostrarPreviewSolicitud() {
                 <td class="text-center">${producto.lt || 0}</td>
                 <td class="text-center">${producto.disp_tda || 0}</td>
                 <td class="text-center">${producto.pend_tda || 0}</td>
+                
+                <!-- ✅ AQUÍ SE MUESTRA EL SDS PROYECTADO (Rojo si supera 12) -->
                 <td class="text-center">
                     <strong class="${sdsProyectada > 12 ? 'text-danger' : ''}">${sdsProyectada.toFixed(1)}</strong>
                 </td>
-                <td class="text-center">
-                    <strong class="text-primary fs-6">${cantidadFinal}</strong>
-                    ${cantidadFinal != cantidadOriginal ? `<br><small class="text-muted" style="font-size: 0.75rem;">(Original: ${cantidadOriginal})</small>` : ''}
-                </td>
+                
+                <td class="text-center"><strong class="text-primary fs-6">${cantidad}</strong></td>
                 <td class="text-center">
                     <strong class="text-primary">${palletsExactos.toFixed(3)}</strong><br>
                     <small class="text-muted" style="font-size: 10px;">(${unidPallet} u/pl)</small>
@@ -665,37 +605,12 @@ async function mostrarPreviewSolicitud() {
             </tr>
         `;
 
-        // 3️⃣ Insertar mensajes de advertencia de forma unificada y limpia
-        const tablaDetalle = document.getElementById('confirm_tabla_detalle');
-        const mensajesExistentes = document.getElementById('mensajesAdvertenciaContainer');
-        if (mensajesExistentes) mensajesExistentes.remove();
-        
-        if (mensajeMid || alertaQuiebre) {
-            const divMensajes = document.createElement('div');
-            divMensajes.id = 'mensajesAdvertenciaContainer';
-            divMensajes.innerHTML = (mensajeMid || '') + (alertaQuiebre || '');
-            
-            // Insertar justo antes de la tabla para no romper el layout
-            const seccionDetalle = tablaDetalle.closest('.table-responsive')?.previousElementSibling;
-            if (seccionDetalle) {
-                seccionDetalle.after(divMensajes);
-            } else {
-                tablaDetalle.parentNode.insertBefore(divMensajes, tablaDetalle);
-            }
-        }
-
         // Mostrar u ocultar observaciones
         if (observaciones.trim()) {
             document.getElementById('confirm_observaciones_container').style.display = 'block';
             document.getElementById('confirm_observaciones').textContent = observaciones;
         } else {
             document.getElementById('confirm_observaciones_container').style.display = 'none';
-        }
-
-        // Guardar cantidad final ajustada para el envío
-        const btnEnviar = document.getElementById('btnConfirmarEnviar');
-        if (btnEnviar) {
-            btnEnviar.setAttribute('data-cantidad-final', cantidadFinal);
         }
 
         // Mostrar el modal
@@ -712,10 +627,11 @@ async function mostrarPreviewSolicitud() {
         });
     }
 }
+
 // Función auxiliar para mostrar modal sin detalles (cuando no hay datos en sugerido)
 function mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, observaciones) {
     document.getElementById('confirm_familia').textContent = familiaTexto;
-    document.getElementById('confirm_tienda').textContent = (typeof NOMBRE_TIENDA !== 'undefined' ? NOMBRE_TIENDA : 'Tienda') + (typeof ID_TIENDA !== 'undefined' && ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
+    document.getElementById('confirm_tienda').textContent = NOMBRE_TIENDA + (ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
     
     const tbody = document.getElementById('confirm_tabla_detalle');
     tbody.innerHTML = `
@@ -740,7 +656,7 @@ function mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, obser
 }
 
 // ==========================================
-// 2. Confirmar y Enviar (USA CANTIDAD AJUSTADA AL MIN)
+// 2. Confirmar y Enviar al Servidor (AJAX) - ACTUALIZADO PARA SOPORTAR EDICIÓN
 // ==========================================
 async function confirmarYEnviarSolicitud() {
     const modalEl = document.getElementById('modalConfirmacion');
@@ -749,22 +665,20 @@ async function confirmarYEnviarSolicitud() {
     
     Swal.fire({ title: 'Procesando...', text: 'Por favor espera un momento', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
+    // Detectar si es modo edición
     const btn = document.getElementById('btnEnviarManual');
     const idEditar = btn ? btn.getAttribute('data-id-editar') : "0";
     const esEdicion = idEditar && parseInt(idEditar) > 0;
-
-    // ✅ Usar cantidad final ajustada al MIN
-    const btnConfirmar = document.getElementById('btnConfirmarEnviar');
-    const cantidadFinal = btnConfirmar?.getAttribute('data-cantidad-final') || document.getElementById('cantidad')?.value || 0;
 
     const formData = {
         id_familia: document.getElementById('idFamilia')?.value || '',
         sku: document.getElementById('sku')?.value || '',
         descripcion: document.getElementById('descripcion')?.value || '',
-        cantidad: parseInt(cantidadFinal),
+        cantidad: parseInt(document.getElementById('cantidad')?.value || 0),
         observaciones: document.getElementById('observaciones')?.value || ''
     };
 
+    // Determinar URL y payload según si es edición o nuevo
     let url = '../api/solicitar_carga.php';
     let payload = formData;
 
@@ -806,7 +720,7 @@ async function confirmarYEnviarSolicitud() {
         }
     } catch (error) {
         console.error('Error:', error);
-        Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor.', confirmButtonColor: '#dc3545' });
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor. Intenta nuevamente.', confirmButtonColor: '#dc3545' });
     }
 }
 

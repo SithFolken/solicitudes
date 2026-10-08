@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// ✅ 7. CORRECCIÓN: Leer datos (puede venir como JSON o POST tradicional)
+// 7. Leer datos (puede venir como JSON o POST tradicional)
 $inputJSON = file_get_contents('php://input');
 $input = json_decode($inputJSON, true);
 
@@ -100,17 +100,9 @@ try {
                       AND s.estado_general IN ('PENDIENTE', 'EN_PROCESO')
                     LIMIT 5";
         
-        error_log("SQL Validación: $sql_val");
-        
         $stmt_val = $pdo->prepare($sql_val);
         $stmt_val->execute(['usuario' => $usuario_tienda, 'sku' => $sku]);
         $resultados_val = $stmt_val->fetchAll();
-        
-        error_log("Resultados validación: " . count($resultados_val) . " registros encontrados");
-        
-        foreach ($resultados_val as $reg) {
-            error_log("  - Solicitud #{$reg['id_solicitud']}, Estado: {$reg['estado_general']}, Item Estado: {$reg['estado_item']}");
-        }
         
         // Filtrar solo los que están PENDIENTE
         $pendientes = array_filter($resultados_val, function($r) {
@@ -124,14 +116,12 @@ try {
             
             echo json_encode([
                 'success' => false,
-                'message' => "El SKU **{$sku}** ya está en la solicitud **#{$solicitud_pendiente['id_solicitud']}** (estado: **{$solicitud_pendiente['estado_general']}**, creada el {$solicitud_pendiente['fecha']}). Espera a que sea procesada antes de solicitarlo nuevamente.",
+                'message' => "El SKU **{$sku}** ya está en la solicitud **#{$solicitud_pendiente['id_solicitud']}** (estado: **{$solicitud_pendiente['estado_general']}`, creada el {$solicitud_pendiente['fecha']}). Espera a que sea procesada antes de solicitarlo nuevamente.",
                 'tipo_error' => 'SKU_PENDIENTE',
                 'id_solicitud_existente' => $solicitud_pendiente['id_solicitud']
             ]);
             exit;
         }
-        
-        error_log("VALIDACIÓN PASÓ - SKU $sku no está pendiente");
         
     } catch (PDOException $e_val) {
         error_log("ERROR en validación: " . $e_val->getMessage());
@@ -140,23 +130,27 @@ try {
     // ==========================================
     // OBTENER DATOS DEL SUGERIDO DIARIO
     // ==========================================
-        $sql_sug = "SELECT 
-                    ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
-                    disp as disp_tda, 
-                    pend as pend_tda, 
-                    disp_bod, 
-                    pend_bod, 
-                    MD as MD_sugerido,
-                    -- ✅ AGREGADO: Columnas necesarias para el Árbol de Decisión (Bypass y Lead Time)
-                    vta_sem_1, vta_sem_2, vta_sem_3,
-                    lead_time_total
-                FROM rct.sugerido_diario 
-                WHERE id_tienda = :id_tienda AND sku = :sku
-                ORDER BY fecha DESC LIMIT 1";
-    
+    $sql_sug = "SELECT 
+                ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
+                disp as disp_tda, 
+                pend as pend_tda, 
+                disp_bod, 
+                pend_bod, 
+                MD as MD_sugerido,
+                vta_sem_1, vta_sem_2, vta_sem_3,
+                lead_time_total,
+                -- ✅ CORRECCIÓN CLAVE: Traer el MIN para el Árbol de Decisión
+                COALESCE(`MIN`, 0) as min_despacho
+            FROM rct.sugerido_diario 
+            WHERE id_tienda = :id_tienda AND sku = :sku
+            ORDER BY fecha DESC LIMIT 1";
+
     $stmt_sug = $pdo->prepare($sql_sug);
     $stmt_sug->execute(['id_tienda' => $id_tienda, 'sku' => $sku]);
     $datos_sugerido = $stmt_sug->fetch();
+    
+    // Log para verificar que MIN llega correctamente al árbol
+    error_log("SOLICITUD_CARGA: MIN recibido para SKU $sku = " . ($datos_sugerido['min_despacho'] ?? 'NULL'));
 
     // ==========================================
     // EVALUAR CON EL ÁRBOL DE DECISIÓN
@@ -199,25 +193,27 @@ try {
     }
 
     // ==========================================
-    // CREAR DETALLE (HIJO)
+    // CREAR DETALLE (HIJO) CON CANTIDAD AUTORIZADA
     // ==========================================
     error_log("CREANDO DETALLE - Padre ID: $id_solicitud_padre, SKU: $sku");
     
     $estado_item = 'PENDIENTE';
-    $motivo = '';
+    // Si hay nota de aprobación (ej: ajuste por MIN), la guardamos en campo_cambios
+    $motivo = $evaluacion['nota_aprobacion'] ?? ''; 
     
     $sql_detalle = "INSERT INTO Analisis_Procesos.solicitudes_carga 
                    (id_solicitud, sku, descripcion_producto, carga_solicitada, carga_final, estado_item, campo_cambios, id_familia) 
-                   VALUES (:id_solicitud, :sku, :descripcion, :cantidad, 0, :estado_item, :motivo, :id_familia)";
+                   VALUES (:id_solicitud, :sku, :descripcion, :cantidad_solicitada, :cantidad_final, :estado_item, :motivo, :id_familia)";
     
     $stmt_detalle = $pdo->prepare($sql_detalle);
     $stmt_detalle->execute([
         'id_solicitud' => $id_solicitud_padre,
         'sku' => $sku,
         'descripcion' => $descripcion,
-        'cantidad' => $cantidad,
+        'cantidad_solicitada' => $cantidad,                      // La que pidió el usuario
+        'cantidad_final' => $evaluacion['cantidad_autorizada'], // ✅ La que aprobó el árbol (ajustada al MIN si aplica)
         'estado_item' => $estado_item,
-        'motivo' => $motivo,
+        'motivo' => $motivo,                                    // ✅ Guarda la nota "Cantidad ajustada al MIN..."
         'id_familia' => $id_familia
     ]);
     
@@ -252,7 +248,7 @@ try {
                     'usuario_tienda' => $usuario_tienda,
                     'sku' => $sku,
                     'descripcion_producto' => $descripcion,
-                    'carga_solicitada' => $cantidad,
+                    'carga_solicitada' => $evaluacion['cantidad_autorizada'], // ✅ Usar la cantidad autorizada
                     'fecha_solicitud' => date('Y-m-d H:i:s')
                 ]
             );
@@ -273,7 +269,7 @@ try {
                 'id_solicitud' => $id_solicitud_padre,
                 'sku' => $sku,
                 'descripcion_producto' => $descripcion,
-                'carga_solicitada' => $cantidad,
+                'carga_solicitada' => $evaluacion['cantidad_autorizada'], // ✅ Usar la cantidad autorizada
                 'fecha_solicitud' => date('Y-m-d H:i:s')
             ]
         );
@@ -294,7 +290,7 @@ try {
 
 } catch (PDOException $e) {
     error_log("Error PDO: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'Error de base de datos']);
+    echo json_encode(['success' => false, 'message' => 'Error de base de datos: ' . $e->getMessage()]);
 } catch (Exception $e) {
     error_log("Error general: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);

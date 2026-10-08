@@ -19,14 +19,11 @@ if (!$sku || $id_tienda <= 0) {
 }
 
 try {
-    // ✅ CORREGIDO: La fórmula del SDS es AHORA IDÉNTICA a la del Árbol de Decisión
-    // SDS = (disp_tda + pend_tda) / PV6
     $sql = "SELECT 
                 sd.sku,
                 sd.descripcion_producto,
-                -- Calcular PV6 exactamente como lo hace el Árbol de Decisión
-                ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as PV6,
-                ROUND((COALESCE(sd.vta_sem_6, 0) + COALESCE(sd.vta_sem_5, 0) + COALESCE(sd.vta_sem_4, 0)) / 3, 2) as PV3,
+                ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6,
+                ROUND((COALESCE(vta_sem_6, 0) + COALESCE(vta_sem_5, 0) + COALESCE(vta_sem_4, 0)) / 3, 2) as PV3,
                 sd.capacity,
                 sd.lead_time_total as lt,
                 sd.disp as disp_tda,
@@ -41,7 +38,7 @@ try {
                 sd.vta_sem_6 as v6,
                 sd.MD as md_defecto,
                 sd.unid_pallet,
-                -- ✅ FÓRMULA EXACTA DEL ÁRBOL DE DECISIÓN:
+                COALESCE(sd.`MIN`, 0) as min_despacho,
                 CASE 
                     WHEN ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) > 0 
                     THEN ROUND(
@@ -60,12 +57,12 @@ try {
     $producto = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($producto) {
-        // Log para depuración: verificar que los valores coincidan con el servidor
-        error_log("SDS Preview - SKU: {$producto['sku']}, Disp: {$producto['disp_tda']}, Pend: {$producto['pend_tda']}, PV6: {$producto['PV6']}, SDS Calculado: {$producto['sds_actual']}");
+        // ✅ LOG para depuración: verificar que MIN llega correctamente
+        error_log("DETALLE PRODUCTO - SKU: {$producto['sku']}, MIN: {$producto['min_despacho']}, PV6: {$producto['PV6']}");
         
         echo json_encode(['success' => true, 'producto' => $producto]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Producto no encontrado en el sugerido diario']);
+        echo json_encode(['success' => false, 'message' => 'Producto no encontrado']);
     }
     
 } catch (PDOException $e) {

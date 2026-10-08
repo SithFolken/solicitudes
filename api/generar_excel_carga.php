@@ -19,7 +19,6 @@ try {
     
     $ciclo_nombre = isset($_GET['ciclo']) ? $_GET['ciclo'] : date('Y-m-d');
     
-    // ✅ El PHP DEBE recibir las fechas del JS. Si no, es un error.
     if (!isset($_GET['fecha_inicio']) || !isset($_GET['fecha_fin'])) {
         throw new Exception('No se recibieron las fechas del ciclo. Por favor, intenta nuevamente desde el navegador.');
     }
@@ -27,7 +26,6 @@ try {
     $fecha_corte_inicio = $_GET['fecha_inicio'];
     $fecha_corte_fin = $_GET['fecha_fin'];
     
-    // Log para depuración (puedes verlo en tu archivo de logs de PHP)
     error_log("Excel - Ciclo: $ciclo_nombre, Desde: $fecha_corte_inicio, Hasta: $fecha_corte_fin");
 
     // ==========================================
@@ -73,7 +71,7 @@ try {
     // GENERAR EXCEL
     // ==========================================
 
-    // 1. Obtener solicitudes del ciclo usando las fechas exactas del JS
+    // 1. Obtener solicitudes del ciclo
     $sql_solicitudes = "SELECT id_solicitud, id_tienda, usuario_tienda, estado_general, fecha_solicitud
                         FROM Analisis_Procesos.solicitudes 
                         WHERE estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
@@ -138,14 +136,28 @@ try {
         }
     }
 
-    // 4. GENERAR EXCEL
+    // ==========================================
+    // 4. GENERAR EXCEL CON COLORES EN ENCABEZADOS
+    // ==========================================
     $primera = true;
     $xlsx = null;
 
-    // --- HOJA 1: TRANSFERENCIA ---
+    // Función auxiliar para crear fila de encabezado con estilo (Sintaxis correcta de SimpleXLSXGen)
+    $crearEncabezado = function($textos, $colorFondo) {
+        $fila = [];
+        foreach ($textos as $texto) {
+            $fila[] = [
+                'v' => $texto,
+                'style' => "fill:{$colorFondo};color:#FFFFFF;font-weight:bold;font-size:11pt;"
+            ];
+        }
+        return $fila;
+    };
+
+    // --- HOJA 1: TRANSFERENCIA (Verde) ---
     if (!empty($items_por_md['TRANSFERENCIA'])) {
         $rows_trf = [];
-        $rows_trf[] = ['TIENDA', 'CODIGO', 'DIGITO', 'CANTIDAD', 'R:'];
+        $rows_trf[] = $crearEncabezado(['TIENDA', 'CODIGO', 'DIGITO', 'CANTIDAD', 'R:'], '#28A745');
         
         foreach ($items_por_md['TRANSFERENCIA'] as $i) {
             $rows_trf[] = [
@@ -165,10 +177,10 @@ try {
         }
     }
 
-    // --- HOJA 2: CROSS DOCKING ---
+    // --- HOJA 2: CROSS DOCKING (Azul) ---
     if (!empty($items_por_md['CROSS_DOCKING'])) {
         $rows_cd = [];
-        $rows_cd[] = ['TIENDA', 'SKU', 'CANTIDAD'];
+        $rows_cd[] = $crearEncabezado(['TIENDA', 'SKU', 'CANTIDAD'], '#007BFF');
         
         foreach ($items_por_md['CROSS_DOCKING'] as $i) {
             $rows_cd[] = [
@@ -186,11 +198,11 @@ try {
         }
     }
 
-    // --- HOJA 3: COMPRA LOCAL ---
+    // --- HOJA 3: COMPRA LOCAL (Naranja) ---
     if (!empty($items_por_md['COMPRA_LOCAL'])) {
         $rows_cl = [];
         $fecha_hoy = date('Y-m-d');
-        $rows_cl[] = ['TIENDA', 'CANTIDAD', 'FECHA_SOLICITUD', 'FECHA_RECEPCION', 'FECHA_CANCELACION', 'PROVEEDOR'];
+        $rows_cl[] = $crearEncabezado(['TIENDA', 'CANTIDAD', 'FECHA_SOLICITUD', 'FECHA_RECEPCION', 'FECHA_CANCELACION', 'PROVEEDOR'], '#FD7E14');
         
         foreach ($items_por_md['COMPRA_LOCAL'] as $i) {
             $lt = (int)$i['LT'];
@@ -218,13 +230,25 @@ try {
         throw new Exception('No hay items aprobados para generar el Excel en este ciclo.');
     }
 
-    // 5. Marcar solicitudes como generadas
+    // ==========================================
+    // 5. Marcar solicitudes como generadas (✅ 100% Posicional)
+    // ==========================================
     $sql_mark = "UPDATE Analisis_Procesos.solicitudes 
                  SET fecha_generacion_excel = NOW(),
-                     usuario_genero_excel = :usuario
+                     usuario_genero_excel = ?
                  WHERE id_solicitud IN ($placeholders)";
+    
     $stmt_mark = $pdo->prepare($sql_mark);
-    $stmt_mark->execute(array_merge(['usuario' => $_SESSION['user_id']], $ids_solicitudes));
+    
+    // El primer '?' (índice 1) es el ID del usuario
+    $stmt_mark->bindValue(1, $_SESSION['user_id'], PDO::PARAM_INT);
+    
+    // Los siguientes '?' (índices 2, 3, 4...) son los IDs de las solicitudes
+    foreach ($ids_solicitudes as $index => $id) {
+        $stmt_mark->bindValue(($index + 2), $id, PDO::PARAM_INT);
+    }
+    
+    $stmt_mark->execute();
 
     // 6. Descargar archivo
     $ciclo_limpio = str_replace('-', '', $ciclo_nombre);

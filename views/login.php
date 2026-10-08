@@ -19,7 +19,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['rol'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sistema de Solicitud de Carga</title>
+    <title>Login - Sistema de Solicitud de Excepciones de Cargas</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
@@ -35,7 +35,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['rol'])) {
                     
                     <!-- Título del sistema -->
                     <div class="text-center mb-3">
-                        <span class="system-title">Sistema de Solicitud de Carga</span>
+                        <span class="system-title">Sistema de Solicitud de Excepciones de Cargas</span>
                     </div>
 
                     <!-- Logo -->
