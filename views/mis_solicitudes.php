@@ -8,6 +8,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'tienda') {
     exit;
 }
 
+// ✅ VALIDACIÓN DE PILOTO (AGREGAR ESTAS 4 LÍNEAS)
+require_once '../api/validar_piloto.php';
+require_once '../config/database.php';
+if (!validarAccesoPiloto($pdo, (int)($_SESSION['id_tienda'] ?? 0))) {
+    header("Location: ../index.php?error=piloto");
+    exit;
+}
+
 // Variables de sesión
 $nombre_tienda_real = htmlspecialchars($_SESSION['nombre_tienda'] ?? 'Tienda');
 $id_tienda = $_SESSION['id_tienda'] ?? 0;

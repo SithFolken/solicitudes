@@ -1,5 +1,8 @@
 <?php
 session_start();
+
+require_once '../includes/verificar_piloto.php';
+
 if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'tienda') {
     echo json_encode(['success' => false, 'message' => 'Acceso no autorizado']);
     exit;
@@ -53,39 +56,68 @@ try {
         
         if (!$sku || $cantidad <= 0) continue;
 
-        // Obtener datos del sugerido
-        $sql_sug = "SELECT ROUND((COALESCE(vta_sem_3,0)+COALESCE(vta_sem_2,0)+COALESCE(vta_sem_1,0))/3, 2) as PV6, disp as disp_tda, pend as pend_tda, disp_bod, pend_bod, MD as MD_sugerido FROM rct.sugerido_diario WHERE id_tienda = :id_tienda AND sku = :sku ORDER BY fecha DESC LIMIT 1";
+        // ✅ CORREGIDO: La consulta ahora incluye MIN y lead_time_total, igual que en solicitar_carga.php
+        $sql_sug = "SELECT 
+                        ROUND((COALESCE(vta_sem_3, 0) + COALESCE(vta_sem_2, 0) + COALESCE(vta_sem_1, 0)) / 3, 2) as PV6, 
+                        disp as disp_tda, 
+                        pend as pend_tda, 
+                        disp_bod, 
+                        pend_bod, 
+                        MD as MD_sugerido,
+                        vta_sem_1, vta_sem_2, vta_sem_3,
+                        lead_time_total,
+                        COALESCE(`MIN`, 0) as min_despacho
+                    FROM rct.sugerido_diario 
+                    WHERE id_tienda = :id_tienda AND sku = :sku 
+                    ORDER BY fecha DESC LIMIT 1";
+        
         $stmt_sug = $pdo->prepare($sql_sug);
         $stmt_sug->execute(['id_tienda' => $id_tienda, 'sku' => $sku]);
         $datos_sugerido = $stmt_sug->fetch();
 
-        // EVALUAR CON EL ÁRBOL
+        // EVALUAR CON EL ÁRBOL (Ahora sí recibirá el MIN y aplicará la excepción correctamente)
         $evaluacion = ArbolDecision::evaluar($sku, $cantidad, $datos_sugerido, $pdo);
         
         $estado_item = $evaluacion['puede_cargar'] ? 'PENDIENTE' : 'RECHAZADO';
-        $motivo = $evaluacion['puede_cargar'] ? '' : $evaluacion['motivo_rechazo'];
+        
+        // Guardamos la nota de aprobación (ej: ajuste al MIN) o el motivo de rechazo
+        $motivo = $evaluacion['puede_cargar'] ? ($evaluacion['nota_aprobacion'] ?? '') : ($evaluacion['motivo_rechazo'] ?? '');
 
-        $sql_insert = "INSERT INTO Analisis_Procesos.solicitudes_carga (id_solicitud, sku, descripcion_producto, carga_solicitada, carga_final, estado_item, campo_cambios, id_familia) VALUES (:id, :sku, :desc, :cant, 0, :estado, :motivo, :fam)";
+        // ✅ CORREGIDO: Ahora guardamos carga_final con la cantidad autorizada por el árbol (respeta el redondeo al MIN)
+        $sql_insert = "INSERT INTO Analisis_Procesos.solicitudes_carga 
+                      (id_solicitud, sku, descripcion_producto, carga_solicitada, carga_final, estado_item, campo_cambios, id_familia) 
+                      VALUES (:id, :sku, :desc, :cant_solicitada, :cant_final, :estado, :motivo, :fam)";
+        
         $stmt_insert = $pdo->prepare($sql_insert);
         $stmt_insert->execute([
             'id' => $id_solicitud,
             'sku' => $sku,
             'desc' => $sku_data['descripcion'] ?? 'Sin descripción',
-            'cant' => $cantidad,
+            'cant_solicitada' => $cantidad,
+            'cant_final' => $evaluacion['cantidad_autorizada'], // ✅ Ya no es 0 fijo
             'estado' => $estado_item,
             'motivo' => $motivo,
             'fam' => $id_familia
         ]);
 
-        if ($evaluacion['puede_cargar']) $detalles_guardados++;
-        else $detalles_rechazados++;
+        if ($evaluacion['puede_cargar']) {
+            $detalles_guardados++;
+        } else {
+            $detalles_rechazados++;
+        }
     }
 
     // 4. Actualizar estado del padre (si todo fue rechazado, cambia a RECHAZADA, si no, sigue PENDIENTE)
     $nuevo_estado = ($detalles_guardados > 0) ? 'PENDIENTE' : 'RECHAZADA';
     
-    $sql_update_padre = "UPDATE Analisis_Procesos.solicitudes SET estado_general = :estado, observaciones_generales = :obs WHERE id_solicitud = :id";
-    $pdo->prepare($sql_update_padre)->execute(['estado' => $nuevo_estado, 'obs' => $observaciones, 'id' => $id_solicitud]);
+    $sql_update_padre = "UPDATE Analisis_Procesos.solicitudes 
+                         SET estado_general = :estado, observaciones_generales = :obs 
+                         WHERE id_solicitud = :id";
+    $pdo->prepare($sql_update_padre)->execute([
+        'estado' => $nuevo_estado, 
+        'obs' => $observaciones, 
+        'id' => $id_solicitud
+    ]);
 
     $pdo->commit();
 

@@ -97,6 +97,28 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['rol'])) {
     </div>
 </div>
 
+<!-- Modal para error de piloto -->
+<div class="modal fade" id="modalPiloto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-warning">
+            <div class="modal-header bg-warning text-dark">
+                <i class="bi bi-cone-striped fs-4 me-2"></i>
+                <h5 class="modal-title fw-bold">Acceso Restringido - Fase Piloto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-lock-fill text-warning" style="font-size: 4rem;"></i>
+                <p class="mt-3 mb-0 fs-5" id="mensajePiloto"></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" id="btnCerrarModalPiloto">
+                    <i class="bi bi-box-arrow-left me-2"></i>Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

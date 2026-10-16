@@ -1,4 +1,9 @@
 <?php
+// Forzar limpieza de caché en producción (puedes quitarlo una vez que funcione)
+if (function_exists('opcache_reset')) {
+    opcache_reset();
+}
+
 /**
  * Clase para evaluar las reglas de negocio (Árbol de Decisión)
  */
@@ -46,8 +51,11 @@ class ArbolDecision {
         $stock_total_tienda = $disp_tda + $pend_tda;
         $es_quiebre = ($stock_total_tienda == 0);
         
+        // ✅ NUEVO: Detectar si el stock está por debajo del MIN operativo
+        $stock_bajo_min = ($min_despacho > 0 && $stock_total_tienda < $min_despacho);
+        
         // Log para depuración
-        error_log("ARBOL: SKU=$sku | MIN=$min_despacho | PV6=$pv6 | Cant=$cantidad_solicitada | Quiebre=" . ($es_quiebre ? 'SI' : 'NO'));
+        error_log("ARBOL: SKU=$sku | MIN=$min_despacho | PV6=$pv6 | Cant=$cantidad_solicitada | Stock=$stock_total_tienda | Quiebre=" . ($es_quiebre ? 'SI' : 'NO') . " | BajoMIN=" . ($stock_bajo_min ? 'SI' : 'NO'));
         
         // PASO 1: REDONDEO AL MIN
         if ($min_despacho > 0 && $cantidad_solicitada < $min_despacho) {
@@ -91,22 +99,30 @@ class ArbolDecision {
             $resultado['nota_aprobacion'] .= " Quiebre aprobado ($cantidad_solicitada <= $limite_quiebre).";
         } else {
             // PASO 3: VALIDACIONES SDS (solo si NO es quiebre)
-            $semanas_stock_actual = ($pv6 > 0) ? ($stock_total_tienda / $pv6) : 999;
-            $stock_proyectado = $stock_total_tienda + $cantidad_solicitada;
-            $semanas_stock_proyectadas = ($pv6 > 0) ? ($stock_proyectado / $pv6) : 999;
+            
+            // ✅ EXCEPCIÓN: Si el stock es menor al MIN, NO validar SDS para permitir la reposición obligatoria
+            if (!$stock_bajo_min) {
+                $semanas_stock_actual = ($pv6 > 0) ? ($stock_total_tienda / $pv6) : 999;
+                $stock_proyectado = $stock_total_tienda + $cantidad_solicitada;
+                $semanas_stock_proyectadas = ($pv6 > 0) ? ($stock_proyectado / $pv6) : 999;
 
-            if ($semanas_stock_actual > 12) {
-                $resultado['puede_cargar'] = false;
-                $resultado['motivo_rechazo'] = "SDS actual de " . round($semanas_stock_actual, 1) . " semanas excede el maximo (12). Stock: $stock_total_tienda, PV6: $pv6.";
-                $resultado['cantidad_autorizada'] = 0;
-                return $resultado;
-            }
+                if ($semanas_stock_actual > 12) {
+                    $resultado['puede_cargar'] = false;
+                    $resultado['motivo_rechazo'] = "SDS actual de " . round($semanas_stock_actual, 1) . " semanas excede el maximo (12). Stock: $stock_total_tienda, PV6: $pv6.";
+                    $resultado['cantidad_autorizada'] = 0;
+                    return $resultado;
+                }
 
-            if ($semanas_stock_proyectadas > 12) {
-                $resultado['puede_cargar'] = false;
-                $resultado['motivo_rechazo'] = "Cantidad excesiva: alcanzarias " . round($semanas_stock_proyectadas, 1) . " semanas (max 12). Stock: $stock_total_tienda, Carga: $cantidad_solicitada.";
-                $resultado['cantidad_autorizada'] = 0;
-                return $resultado;
+                if ($semanas_stock_proyectadas > 12) {
+                    $resultado['puede_cargar'] = false;
+                    $resultado['motivo_rechazo'] = "Cantidad excesiva: alcanzarias " . round($semanas_stock_proyectadas, 1) . " semanas (max 12). Stock: $stock_total_tienda, Carga: $cantidad_solicitada.";
+                    $resultado['cantidad_autorizada'] = 0;
+                    return $resultado;
+                }
+            } else {
+                // Se aplica la excepción
+                error_log("ARBOL: EXCEPCIÓN APLICADA - Stock ($stock_total_tienda) < MIN ($min_despacho). Se omite validación de SDS para permitir reposición.");
+                $resultado['nota_aprobacion'] .= " | Excepción: Stock bajo MIN, se permite carga sin validar límite de SDS.";
             }
         }
 
@@ -184,7 +200,8 @@ class ArbolDecision {
         }
 
         // PASO 6: REGLA 5 - STOCK ALTO + SIN BODEGA + TRF
-        if (!$es_quiebre) {
+        // ✅ Agregamos !$stock_bajo_min para que no aplique si estamos reponiendo el mínimo
+        if (!$es_quiebre && !$stock_bajo_min) {
             $semanas_stock_actual = ($pv6 > 0) ? ($stock_total_tienda / $pv6) : 999;
             if ($semanas_stock_actual >= 10 && $md_sugerido === 'TRF' && $disp_bod == 0) {
                 $resultado['puede_cargar'] = false;

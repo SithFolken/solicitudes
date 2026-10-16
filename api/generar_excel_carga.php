@@ -13,20 +13,50 @@ use Shuchkin\SimpleXLSXGen;
 require_once '../config/database.php';
 
 try {
-    // ==========================================
-    // ✅ OBTENER FECHAS ENVIADAS POR EL JAVASCRIPT
-    // ==========================================
-    
+    $usuario_actual = $_SESSION['user_id'] ?? '';
+    $rol_actual = $_SESSION['rol'] ?? '';
+
     $ciclo_nombre = isset($_GET['ciclo']) ? $_GET['ciclo'] : date('Y-m-d');
     
     if (!isset($_GET['fecha_inicio']) || !isset($_GET['fecha_fin'])) {
-        throw new Exception('No se recibieron las fechas del ciclo. Por favor, intenta nuevamente desde el navegador.');
+        throw new Exception('No se recibieron las fechas del ciclo.');
     }
     
     $fecha_corte_inicio = $_GET['fecha_inicio'];
     $fecha_corte_fin = $_GET['fecha_fin'];
-    
+
     error_log("Excel - Ciclo: $ciclo_nombre, Desde: $fecha_corte_inicio, Hasta: $fecha_corte_fin");
+
+    // ==========================================
+    // ✅ CONSULTA MAESTRA: Obtener familias si es analista
+    // ==========================================
+    $where_familia = '';
+    $params_familia = [];
+    
+    if ($rol_actual === 'analista') {
+        $sql_familias = "SELECT DISTINCT d.Familia as id_familia
+                         FROM FulFillment.distribucion_analista_familia d
+                         INNER JOIN rct.usuarios_solicitudes_oc u 
+                             ON d.Analista_reposicion_tienda = u.nombre
+                         WHERE u.usuario = :usuario_analista";
+        
+        $stmt_familias = $pdo->prepare($sql_familias);
+        $stmt_familias->execute(['usuario_analista' => $usuario_actual]);
+        $familias_asignadas = $stmt_familias->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (empty($familias_asignadas)) {
+            echo json_encode(['success' => false, 'tiene_datos' => false, 'message' => 'No tienes familias asignadas.']);
+            exit;
+        }
+        
+        $placeholders = [];
+        foreach ($familias_asignadas as $index => $familia) {
+            $param_name = 'fam_' . $index;
+            $placeholders[] = ':' . $param_name;
+            $params_familia[$param_name] = $familia;
+        }
+        $where_familia = " AND s.id_familia IN (" . implode(',', $placeholders) . ")";
+    }
 
     // ==========================================
     // MODO VALIDACIÓN (desde el frontend)
@@ -37,13 +67,11 @@ try {
                         FROM Analisis_Procesos.solicitudes s 
                         WHERE s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
                         AND s.fecha_solicitud >= :inicio
-                        AND s.fecha_solicitud < :fin";
+                        AND s.fecha_solicitud < :fin
+                        {$where_familia}";
         
         $stmt_validar = $pdo->prepare($sql_validar);
-        $stmt_validar->execute([
-            'inicio' => $fecha_corte_inicio,
-            'fin' => $fecha_corte_fin
-        ]);
+        $stmt_validar->execute(array_merge(['inicio' => $fecha_corte_inicio, 'fin' => $fecha_corte_fin], $params_familia));
         
         $resultado = $stmt_validar->fetch();
         
@@ -71,19 +99,17 @@ try {
     // GENERAR EXCEL
     // ==========================================
 
-    // 1. Obtener solicitudes del ciclo
-    $sql_solicitudes = "SELECT id_solicitud, id_tienda, usuario_tienda, estado_general, fecha_solicitud
-                        FROM Analisis_Procesos.solicitudes 
-                        WHERE estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
-                        AND fecha_solicitud >= :inicio
-                        AND fecha_solicitud < :fin
-                        ORDER BY fecha_solicitud";
+    // 1. Obtener solicitudes del ciclo (con alias 's' y filtro de familia)
+    $sql_solicitudes = "SELECT s.id_solicitud, s.id_tienda, s.usuario_tienda, s.estado_general, s.fecha_solicitud
+                        FROM Analisis_Procesos.solicitudes s
+                        WHERE s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL')
+                        AND s.fecha_solicitud >= :inicio
+                        AND s.fecha_solicitud < :fin
+                        {$where_familia}
+                        ORDER BY s.fecha_solicitud";
     
     $stmt = $pdo->prepare($sql_solicitudes);
-    $stmt->execute([
-        'inicio' => $fecha_corte_inicio,
-        'fin' => $fecha_corte_fin
-    ]);
+    $stmt->execute(array_merge(['inicio' => $fecha_corte_inicio, 'fin' => $fecha_corte_fin], $params_familia));
     $solicitudes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($solicitudes)) {
@@ -94,13 +120,13 @@ try {
     }
 
     $ids_solicitudes = array_column($solicitudes, 'id_solicitud');
-    $placeholders = implode(',', array_fill(0, count($ids_solicitudes), '?'));
+    $placeholders_ids = implode(',', array_fill(0, count($ids_solicitudes), '?'));
 
     // 2. Obtener items aprobados
     $sql_items = "SELECT sc.id_solicitud, s.id_tienda, sc.sku, sc.descripcion_producto, sc.carga_final, sc.md 
                   FROM Analisis_Procesos.solicitudes_carga sc
                   INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
-                  WHERE sc.id_solicitud IN ($placeholders) AND sc.estado_item = 'APROBADO'
+                  WHERE sc.id_solicitud IN ($placeholders_ids) AND sc.estado_item = 'APROBADO'
                   ORDER BY sc.md, sc.sku";
     $stmt_items = $pdo->prepare($sql_items);
     $stmt_items->execute($ids_solicitudes);
@@ -122,7 +148,8 @@ try {
         $md = $md_map[$md_raw] ?? null;
         
         if ($md && isset($items_por_md[$md])) {
-            $sql_sug = "SELECT lead_time_total as LT, nombre_proveedor 
+            // ✅ CORREGIDO: Agregar id_proveedor a la consulta
+            $sql_sug = "SELECT lead_time_total as LT, nombre_proveedor, id_proveedor 
                         FROM rct.sugerido_diario 
                         WHERE id_tienda = ? AND sku = ? 
                         ORDER BY fecha DESC LIMIT 1";
@@ -132,17 +159,18 @@ try {
             
             $item['LT'] = $sugerido['LT'] ?? 0;
             $item['proveedor'] = $sugerido['nombre_proveedor'] ?? 'N/A';
+            $item['id_proveedor'] = $sugerido['id_proveedor'] ?? 'N/A'; // ✅ NUEVO
             $items_por_md[$md][] = $item;
         }
     }
 
     // ==========================================
-    // 4. GENERAR EXCEL CON COLORES EN ENCABEZADOS
+    // 4. GENERAR EXCEL CON ENCABEZADOS Y COLORES
     // ==========================================
     $primera = true;
     $xlsx = null;
 
-    // Función auxiliar para crear fila de encabezado con estilo (Sintaxis correcta de SimpleXLSXGen)
+    // Función auxiliar para crear fila de encabezado con estilo
     $crearEncabezado = function($textos, $colorFondo) {
         $fila = [];
         foreach ($textos as $texto) {
@@ -157,8 +185,10 @@ try {
     // --- HOJA 1: TRANSFERENCIA (Verde) ---
     if (!empty($items_por_md['TRANSFERENCIA'])) {
         $rows_trf = [];
+        // ✅ Encabezado
         $rows_trf[] = $crearEncabezado(['TIENDA', 'CODIGO', 'DIGITO', 'CANTIDAD', 'R:'], '#28A745');
         
+        // ✅ Filas de datos
         foreach ($items_por_md['TRANSFERENCIA'] as $i) {
             $rows_trf[] = [
                 $i['id_tienda'], 
@@ -180,8 +210,10 @@ try {
     // --- HOJA 2: CROSS DOCKING (Azul) ---
     if (!empty($items_por_md['CROSS_DOCKING'])) {
         $rows_cd = [];
+        // ✅ Encabezado
         $rows_cd[] = $crearEncabezado(['TIENDA', 'SKU', 'CANTIDAD'], '#007BFF');
         
+        // ✅ Filas de datos
         foreach ($items_por_md['CROSS_DOCKING'] as $i) {
             $rows_cd[] = [
                 $i['id_tienda'], 
@@ -202,14 +234,18 @@ try {
     if (!empty($items_por_md['COMPRA_LOCAL'])) {
         $rows_cl = [];
         $fecha_hoy = date('Y-m-d');
-        $rows_cl[] = $crearEncabezado(['TIENDA', 'CANTIDAD', 'FECHA_SOLICITUD', 'FECHA_RECEPCION', 'FECHA_CANCELACION', 'PROVEEDOR'], '#FD7E14');
         
+        // ✅ Encabezado con ID_PROVEEDOR
+        $rows_cl[] = $crearEncabezado(['TIENDA', 'ID_PROVEEDOR', 'CANTIDAD', 'FECHA_SOLICITUD', 'FECHA_RECEPCION', 'FECHA_CANCELACION', 'PROVEEDOR'], '#FD7E14');
+        
+        // ✅ Filas de datos con ID_PROVEEDOR
         foreach ($items_por_md['COMPRA_LOCAL'] as $i) {
             $lt = (int)$i['LT'];
             $f_recepcion = date('Y-m-d', strtotime("$fecha_hoy + $lt days"));
             $f_cancel = date('Y-m-d', strtotime("$f_recepcion + 3 days"));
             $rows_cl[] = [
                 $i['id_tienda'], 
+                $i['id_proveedor'],  // ✅ NUEVO: ID del proveedor
                 $i['carga_final'], 
                 $fecha_hoy, 
                 $f_recepcion, 
@@ -231,24 +267,34 @@ try {
     }
 
     // ==========================================
-    // 5. Marcar solicitudes como generadas (✅ 100% Posicional)
+    // 5. Marcar solicitudes como generadas (✅ 100% Parámetros con nombre)
     // ==========================================
-    $sql_mark = "UPDATE Analisis_Procesos.solicitudes 
-                 SET fecha_generacion_excel = NOW(),
-                     usuario_genero_excel = ?
-                 WHERE id_solicitud IN ($placeholders)";
     
-    $stmt_mark = $pdo->prepare($sql_mark);
+    // Crear placeholders con nombre para cada ID de solicitud
+    $placeholders_ids_named = [];
+    $params_update = ['usuario' => $usuario_actual];
     
-    // El primer '?' (índice 1) es el ID del usuario
-    $stmt_mark->bindValue(1, $_SESSION['user_id'], PDO::PARAM_INT);
-    
-    // Los siguientes '?' (índices 2, 3, 4...) son los IDs de las solicitudes
     foreach ($ids_solicitudes as $index => $id) {
-        $stmt_mark->bindValue(($index + 2), $id, PDO::PARAM_INT);
+        $param_name = 'id_' . $index;
+        $placeholders_ids_named[] = ':' . $param_name;
+        $params_update[$param_name] = $id;
     }
     
-    $stmt_mark->execute();
+    // Agregar parámetros de familias con nombre
+    $placeholders_fam_update = [];
+    foreach ($params_familia as $key => $val) {
+        $new_key = 'up_' . $key;
+        $placeholders_fam_update[] = ':' . $new_key;
+        $params_update[$new_key] = $val;
+    }
+    
+    $sql_mark = "UPDATE Analisis_Procesos.solicitudes 
+                 SET fecha_generacion_excel = NOW(), usuario_genero_excel = :usuario
+                 WHERE id_solicitud IN (" . implode(',', $placeholders_ids_named) . ")
+                 AND id_familia IN (" . implode(',', $placeholders_fam_update) . ")";
+    
+    $stmt_mark = $pdo->prepare($sql_mark);
+    $stmt_mark->execute($params_update);
 
     // 6. Descargar archivo
     $ciclo_limpio = str_replace('-', '', $ciclo_nombre);

@@ -2,7 +2,6 @@
 // procesar_carga.js - Sistema de Cargas
 // ==========================================
 
-// Obtener ID de la solicitud (ya viene de la sesión vía PHP)
 const urlParams = new URLSearchParams(window.location.search);
 const idSolicitud = urlParams.get('id') || 0;
 
@@ -46,13 +45,13 @@ async function cargarSKUs() {
         data.skus.forEach(item => {
             const tr = document.createElement('tr');
             
-            // ✅ CALCULAR PALLETS (con fracción exacta)
+            // ✅ 1. OBTENER CANTIDAD FINAL (Si existe, sino usar la solicitada)
             const unidPallet = parseFloat(item.unid_pallet) || 1;
             const cantSolicitada = parseFloat(item.carga_solicitada) || 0;
+            const cantFinal = (parseFloat(item.carga_final) > 0) ? parseFloat(item.carga_final) : cantSolicitada; // ✅ CLAVE
 
-            // Calcular pallets exactos (con decimales)
-            const palletsExactos = cantSolicitada > 0 ? (cantSolicitada / unidPallet) : 0;
-            const palletsRedondeados = Math.ceil(palletsExactos); // Para referencia
+            // ✅ 2. CALCULAR PALLETS USANDO LA CANTIDAD FINAL
+            const palletsExactos = cantFinal > 0 ? (cantFinal / unidPallet) : 0;
             
             tr.innerHTML = `
                 <td><strong>${item.sku}</strong></td>
@@ -91,10 +90,13 @@ async function cargarSKUs() {
                 <td class="bg-sds"><strong>${item.sds_actual || '0'}</strong></td>
                 <td class="bg-sds"><strong>${item.sds_carga || '0'}</strong></td>
                 
-                <td><strong>${item.carga_solicitada || '0'}</strong></td>
+                <!-- ✅ 3. MOSTRAR CANTIDAD FINAL EN TEXTO -->
+                <td><strong>${cantFinal || '0'}</strong></td>
+                
+                <!-- ✅ 4. INPUT CON CANTIDAD FINAL COMO VALOR INICIAL -->
                 <td>
                     <input type="number" class="form-control form-control-sm input-cantidad" 
-                           data-id="${item.id_detalle}" value="${item.carga_solicitada || '0'}" min="0" step="1">
+                           data-id="${item.id_detalle}" value="${cantFinal || '0'}" min="0" step="1">
                 </td>
                 
                 <!-- PALLETS -->
@@ -104,8 +106,9 @@ async function cargarSKUs() {
                             ${palletsExactos.toFixed(3)}
                         </strong>
                         <br>
+                        <!-- ✅ 5. TEXTO DE REFERENCIA CON CANTIDAD FINAL -->
                         <small class="text-muted" style="font-size: 9px;">
-                            (${cantSolicitada}/${unidPallet})
+                            (${cantFinal}/${unidPallet})
                         </small>
                         ${palletsExactos < 1 ? `
                             <br>
@@ -157,17 +160,13 @@ async function limpiarYVolver() {
 
     if (result.isConfirmed) {
         try {
-            // Llamar a API para limpiar la sesión
             await fetch('../api/limpiar_sesion_procesamiento.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-            
-            // Redirigir a gestionar_cargas.php
             window.location.href = 'gestionar_cargas.php';
         } catch (error) {
             console.error('Error al limpiar sesión:', error);
-            // Aunque falle, redirigir igual
             window.location.href = 'gestionar_cargas.php';
         }
     }
@@ -279,12 +278,7 @@ async function guardarCambios(procesar = true) {
     
     if (tieneErrores) return;
     if (items.length === 0) { 
-        Swal.fire({
-            icon: 'warning',
-            title: 'Sin datos',
-            text: 'No hay items para guardar',
-            confirmButtonColor: '#0056b3'
-        }); 
+        Swal.fire({ icon: 'warning', title: 'Sin datos', text: 'No hay items para guardar', confirmButtonColor: '#0056b3' }); 
         return; 
     }
     
@@ -339,20 +333,10 @@ async function guardarCambios(procesar = true) {
                 }
             });
         } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: data.message,
-                confirmButtonColor: '#0056b3'
-            });
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message, confirmButtonColor: '#0056b3' });
         }
     } catch (error) {
         console.error('Error:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar con el servidor',
-            confirmButtonColor: '#0056b3'
-        });
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo conectar con el servidor', confirmButtonColor: '#0056b3' });
     }
 }

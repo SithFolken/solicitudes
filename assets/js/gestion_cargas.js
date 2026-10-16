@@ -257,46 +257,32 @@ function limpiarFiltros() {
 }
 
 // ==========================================
-// Exportar Excel del Ciclo (Sin cambios)
+// Exportar Excel del Ciclo 
 // ==========================================
+
 // ==========================================
-// Exportar Excel del Ciclo (CORREGIDO)
+// Exportar Excel del Ciclo (LÓGICA SIMPLIFICADA Y CORREGIDA)
 // ==========================================
 function exportarExcel() {
+    // Obtener fecha local de HOY (evita problemas de zona horaria de toISOString)
     const hoy = new Date();
-    const horaActual = hoy.getHours() + (hoy.getMinutes() / 60);
-    const fechaHoy = hoy.toISOString().split('T')[0];
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, '0');
+    const day = String(hoy.getDate()).padStart(2, '0');
+    const fechaHoyLocal = `${year}-${month}-${day}`;
     
-    // Calcular el período correcto según la hora
-    let fechaInicio, fechaFin, cicloNombre, mensajeHora;
+    // Obtener fecha local de AYER
+    const ayer = new Date(hoy);
+    ayer.setDate(ayer.getDate() - 1);
+    const yearAyer = ayer.getFullYear();
+    const monthAyer = String(ayer.getMonth() + 1).padStart(2, '0');
+    const dayAyer = String(ayer.getDate()).padStart(2, '0');
+    const fechaAyerLocal = `${yearAyer}-${monthAyer}-${dayAyer}`;
     
-    if (horaActual < 13) {
-        // Antes de las 13:00: ciclo es desde ayer 13:00 hasta hoy 13:00
-        const ayer = new Date(hoy);
-        ayer.setDate(ayer.getDate() - 1);
-        const fechaAyer = ayer.toISOString().split('T')[0];
-        
-        fechaInicio = `${fechaAyer} 13:00:00`;
-        fechaFin = `${fechaHoy} 13:00:00`;
-        cicloNombre = fechaHoy;
-        mensajeHora = '';
-    } else {
-        // Después de las 13:00: ciclo es desde hoy 13:00 hasta mañana 13:00
-        const manana = new Date(hoy);
-        manana.setDate(manana.getDate() + 1);
-        const fechaManana = manana.toISOString().split('T')[0];
-        
-        fechaInicio = `${fechaHoy} 13:00:00`;
-        fechaFin = `${fechaManana} 13:00:00`;
-        cicloNombre = fechaManana;
-        mensajeHora = `
-            <div class="alert alert-warning mt-2 mb-0">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                <strong>Ya pasó la hora de corte (13:00 hrs)</strong><br>
-                Las solicitudes procesadas después de las 13:00 hrs se incluirán en el ciclo de mañana.
-            </div>
-        `;
-    }
+    // ✅ SIEMPRE usar este rango, sin importar si son las 10:00 o las 15:00 hrs
+    const fechaInicio = `${fechaAyerLocal} 13:00:00`;
+    const fechaFin = `${fechaHoyLocal} 13:00:00`;
+    const cicloNombre = fechaHoyLocal;
     
     Swal.fire({
         title: '¿Generar Excel del Ciclo?',
@@ -305,9 +291,7 @@ function exportarExcel() {
             <div class="alert alert-info text-start">
                 <strong>📅 Ciclo de Corte:</strong> ${cicloNombre}<br>
                 <strong>⏰ Período:</strong> Desde ${fechaInicio}<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hasta ${fechaFin}<br>
-                <strong>🕐 Hora actual:</strong> ${hoy.toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})} hrs
-                ${mensajeHora}
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hasta ${fechaFin}
             </div>
         `,
         icon: 'question',
@@ -325,7 +309,6 @@ function exportarExcel() {
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            // ✅ CORRECCIÓN CLAVE: Enviar las fechas exactas codificadas en la URL
             const urlValidar = `../api/generar_excel_carga.php?ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}&validar=1`;
             
             fetch(urlValidar)
@@ -333,7 +316,6 @@ function exportarExcel() {
                 .then(data => {
                     if (data.success && data.tiene_datos) {
                         Swal.close();
-                        // ✅ Enviar las mismas fechas exactas para la descarga real
                         const urlDescarga = `../api/generar_excel_carga.php?ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}`;
                         window.open(urlDescarga, '_blank');
                         
@@ -350,7 +332,7 @@ function exportarExcel() {
                         Swal.close();
                         Swal.fire({
                             icon: 'warning',
-                            title: data.hora_corte ? 'Hora de corte superada' : 'Sin datos para exportar',
+                            title: 'Sin datos para exportar',
                             html: data.message || 'No se encontraron solicitudes procesadas para este ciclo.',
                             confirmButtonText: 'Entendido',
                             confirmButtonColor: '#ffc107'

@@ -1,6 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
     
+    // ✅ LIMPIEZA DE BACKDROP RESIDUAL (solución al problema de pantalla bloqueada)
+    document.addEventListener('hidden.bs.modal', function (event) {
+        // Eliminar cualquier backdrop residual
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    });
+
+    // ✅ Botón "Entendido" del modal piloto
+    const btnCerrarModal = document.getElementById('btnCerrarModalPiloto');
+    if (btnCerrarModal) {
+        btnCerrarModal.addEventListener('click', () => {
+            const modalEl = document.getElementById('modalPiloto');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        });
+    }
+    
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -12,13 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const messageText = document.getElementById('messageText');
             const passwordInput = document.getElementById('password');
 
-            // 1. Activar estado de carga
+            // Activar carga
             btn.disabled = true;
             spinner.classList.remove('d-none');
             btnText.textContent = 'Validando...';
             msgBox.classList.add('d-none');
 
             const formData = new FormData(loginForm);
+            let fueExitoso = false;
 
             try {
                 const response = await fetch('api/login.php', {
@@ -29,34 +51,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
 
                 if (data.success) {
-                    // ✅ Éxito: Redirigir según lo que devuelva el servidor
+                    fueExitoso = true;
                     btnText.textContent = '¡Éxito! Redirigiendo...';
                     setTimeout(() => {
                         window.location.href = data.redirect || 'views/dashboard_tienda.php';
                     }, 500);
                 } else {
-                    // ❌ Error: Mostrar mensaje y limpiar contraseña
-                    messageText.textContent = data.message || 'Usuario o contraseña incorrectos.';
-                    msgBox.className = 'alert alert-danger d-flex align-items-center';
-                    msgBox.classList.remove('d-none');
-                    
-                    passwordInput.value = '';
-                    passwordInput.focus();
-                    
-                    // Efecto de sacudida en la tarjeta
-                    const card = document.querySelector('.login-card');
-                    card.style.animation = 'none';
-                    card.offsetHeight; // Trigger reflow
-                    card.style.animation = 'shake 0.5s ease-in-out';
+                    if (data.error_type === 'PILOTO_NO_HABILITADO') {
+                        // ✅ Mostrar Modal Profesional con limpieza garantizada
+                        document.getElementById('mensajePiloto').textContent = data.message;
+                        
+                        const modalEl = document.getElementById('modalPiloto');
+                        
+                        // Destruir instancia anterior si existe (evita conflictos)
+                        const existingModal = bootstrap.Modal.getInstance(modalEl);
+                        if (existingModal) {
+                            existingModal.dispose();
+                        }
+                        
+                        // Crear nueva instancia y mostrar
+                        const modalPiloto = new bootstrap.Modal(modalEl);
+                        modalPiloto.show();
+                    } else {
+                        // Mostrar Alerta Roja y Sacudir
+                        messageText.textContent = data.message || 'Usuario o contraseña incorrectos.';
+                        msgBox.className = 'alert alert-danger d-flex align-items-center';
+                        msgBox.classList.remove('d-none');
+                        
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                        
+                        const card = document.querySelector('.login-card');
+                        card.style.animation = 'none';
+                        card.offsetHeight; 
+                        card.style.animation = 'shake 0.5s ease-in-out';
+                    }
                 }
             } catch (error) {
                 console.error('Error de conexión:', error);
-                messageText.textContent = 'Error de conexión con el servidor. Intenta nuevamente.';
+                messageText.textContent = 'Error de conexión con el servidor.';
                 msgBox.className = 'alert alert-danger d-flex align-items-center';
                 msgBox.classList.remove('d-none');
             } finally {
-                // 3. Restaurar estado del botón (solo si hubo error)
-                if (!msgBox.classList.contains('d-none') && msgBox.classList.contains('alert-danger')) {
+                if (!fueExitoso) {
                     btn.disabled = false;
                     spinner.classList.add('d-none');
                     btnText.textContent = 'Ingresar';

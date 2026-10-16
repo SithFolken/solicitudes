@@ -582,8 +582,47 @@ async function mostrarPreviewSolicitud() {
         const pv6 = parseFloat(producto.PV6) || 0;
         const stockProyectado = stockActual + cantidadFinal;
         const sdsProyectada = pv6 > 0 ? (stockProyectado / pv6) : 999;
+        const sdsActual = pv6 > 0 ? (stockActual / pv6) : 0;
 
-        // 2️⃣ NUEVO: Validación de límites para productos en QUIEBRE (stock = 0)
+        // 2️⃣ Validación de SDS ACTUAL (siempre se valida)
+        let alertaSdsActual = '';
+        if (sdsActual > 12) {
+            alertaSdsActual = `
+                <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>⚠️ SDS Actual excesiva:</strong> ${sdsActual.toFixed(1)} semanas (máx 12).<br>
+                    <small>El sistema rechazará esta solicitud automáticamente.</small>
+                </div>
+            `;
+        }
+
+        // 3️⃣ Validación de SDS PROYECTADA (siempre se valida, excepto si stock < MIN)
+        let alertaSdsProyectada = '';
+        const stockBajoMin = (minDespacho > 0 && stockActual < minDespacho);
+        
+        if (!stockBajoMin && sdsProyectada > 12) {
+            alertaSdsProyectada = `
+                <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>⛔ Cantidad excesiva:</strong> Alcanzarías <strong>${sdsProyectada.toFixed(1)} semanas</strong> (máx 12 permitidas).<br>
+                    <small>Stock actual: ${stockActual} | Carga solicitada: ${cantidadFinal} | SDS proyectada: ${sdsProyectada.toFixed(1)}</small><br>
+                    <strong>El sistema RECHAZARÁ esta solicitud.</strong>
+                </div>
+            `;
+        } else if (stockBajoMin) {
+            // Excepción: stock bajo MIN
+            if (sdsProyectada > 12) {
+                alertaSdsProyectada = `
+                    <div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        <strong>Excepción aplicada:</strong> Stock actual (${stockActual}) está por debajo del MIN (${minDespacho}).<br>
+                        <small>Se permite cargar ${cantidadFinal} unidades aunque las SDS proyectadas sean ${sdsProyectada.toFixed(1)} semanas (reposición obligatoria).</small>
+                    </div>
+                `;
+            }
+        }
+
+        // 4️⃣ Validación de límites para productos en QUIEBRE (stock = 0)
         const esQuiebre = stockActual === 0;
         let alertaQuiebre = '';
 
@@ -591,38 +630,30 @@ async function mostrarPreviewSolicitud() {
             let limiteMaximo = null;
             let tipoLimite = '';
             
-            // Nivel 1: 5x MIN
             if (minDespacho > 0) {
-                limiteMaximo = minDespacho * 5;
-                tipoLimite = `5x MIN (${minDespacho})`;
-            } 
-            // Nivel 2: 12 semanas de PV6
-            else if (pv6 > 0) {
+                limiteMaximo = minDespacho * 2;
+                tipoLimite = `2x MIN (${minDespacho})`;
+            } else if (pv6 > 0) {
                 limiteMaximo = Math.ceil(pv6 * 12);
                 tipoLimite = `12 semanas de stock`;
-            } 
-            // Nivel 3: 12 semanas de promedio de ventas
-            else {
+            } else {
                 const promedioSem = ((parseFloat(producto.v1)||0) + (parseFloat(producto.v2)||0) + (parseFloat(producto.v3)||0)) / 3;
                 if (promedioSem > 0) {
                     limiteMaximo = Math.ceil(promedioSem * 12);
                     tipoLimite = '12 semanas (promedio ventas)';
-                } 
-                // Nivel 4: Tope absoluto si no hay datos
-                else {
+                } else {
                     limiteMaximo = 1000;
                     tipoLimite = 'tope absoluto (sin datos)';
                 }
             }
             
-            // Si la cantidad final supera el límite calculado, mostrar alerta roja
             if (cantidadFinal > limiteMaximo) {
                 alertaQuiebre = `
                     <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
                         <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        <strong>⚠️ Cantidad excesiva para producto en quiebre:</strong><br>
+                        <strong> Producto en quiebre - Cantidad excesiva:</strong><br>
                         Solicitado: <strong>${cantidadFinal}</strong> unidades excede el máximo permitido de <strong>${limiteMaximo}</strong> (${tipoLimite}).<br>
-                        <small>El sistema rechazará esta solicitud al enviar. Reduzca la cantidad.</small>
+                        <small>El sistema RECHAZARÁ esta solicitud. Reduzca la cantidad.</small>
                     </div>
                 `;
             }
@@ -651,7 +682,7 @@ async function mostrarPreviewSolicitud() {
                 <td class="text-center">${producto.disp_tda || 0}</td>
                 <td class="text-center">${producto.pend_tda || 0}</td>
                 <td class="text-center">
-                    <strong class="${sdsProyectada > 12 ? 'text-danger' : ''}">${sdsProyectada.toFixed(1)}</strong>
+                    <strong class="${sdsProyectada > 12 && !stockBajoMin ? 'text-danger' : ''}">${sdsProyectada.toFixed(1)}</strong>
                 </td>
                 <td class="text-center">
                     <strong class="text-primary fs-6">${cantidadFinal}</strong>
@@ -665,23 +696,16 @@ async function mostrarPreviewSolicitud() {
             </tr>
         `;
 
-        // 3️⃣ Insertar mensajes de advertencia de forma unificada y limpia
-        const tablaDetalle = document.getElementById('confirm_tabla_detalle');
-        const mensajesExistentes = document.getElementById('mensajesAdvertenciaContainer');
-        if (mensajesExistentes) mensajesExistentes.remove();
+        // Insertar mensajes de advertencia
+        const mensajesContainer = document.createElement('div');
+        mensajesContainer.id = 'mensajesAdvertenciaContainer';
+        mensajesContainer.innerHTML = (alertaSdsActual || '') + (alertaSdsProyectada || '') + (mensajeMid || '') + (alertaQuiebre || '');
         
-        if (mensajeMid || alertaQuiebre) {
-            const divMensajes = document.createElement('div');
-            divMensajes.id = 'mensajesAdvertenciaContainer';
-            divMensajes.innerHTML = (mensajeMid || '') + (alertaQuiebre || '');
-            
-            // Insertar justo antes de la tabla para no romper el layout
-            const seccionDetalle = tablaDetalle.closest('.table-responsive')?.previousElementSibling;
-            if (seccionDetalle) {
-                seccionDetalle.after(divMensajes);
-            } else {
-                tablaDetalle.parentNode.insertBefore(divMensajes, tablaDetalle);
-            }
+        const seccionDetalle = tbody.closest('.table-responsive')?.previousElementSibling;
+        if (seccionDetalle) {
+            seccionDetalle.after(mensajesContainer);
+        } else {
+            tbody.parentNode.insertBefore(mensajesContainer, tbody);
         }
 
         // Mostrar u ocultar observaciones
@@ -740,7 +764,7 @@ function mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, obser
 }
 
 // ==========================================
-// 2. Confirmar y Enviar (USA CANTIDAD AJUSTADA AL MIN)
+// 2. Confirmar y Enviar (USA CANTIDAD AJUSTADA AL MIN Y ENVÍA MOTIVO)
 // ==========================================
 async function confirmarYEnviarSolicitud() {
     const modalEl = document.getElementById('modalConfirmacion');
@@ -753,16 +777,17 @@ async function confirmarYEnviarSolicitud() {
     const idEditar = btn ? btn.getAttribute('data-id-editar') : "0";
     const esEdicion = idEditar && parseInt(idEditar) > 0;
 
-    // ✅ Usar cantidad final ajustada al MIN
     const btnConfirmar = document.getElementById('btnConfirmarEnviar');
     const cantidadFinal = btnConfirmar?.getAttribute('data-cantidad-final') || document.getElementById('cantidad')?.value || 0;
+    const motivo = document.getElementById('motivo')?.value || ''; // ✅ OBTENER MOTIVO
 
     const formData = {
         id_familia: document.getElementById('idFamilia')?.value || '',
         sku: document.getElementById('sku')?.value || '',
         descripcion: document.getElementById('descripcion')?.value || '',
         cantidad: parseInt(cantidadFinal),
-        observaciones: document.getElementById('observaciones')?.value || ''
+        observaciones: document.getElementById('observaciones')?.value || '',
+        motivo: motivo // ✅ AGREGAR MOTIVO
     };
 
     let url = '../api/solicitar_carga.php';
@@ -773,6 +798,7 @@ async function confirmarYEnviarSolicitud() {
         payload = {
             id_solicitud: parseInt(idEditar),
             observaciones: formData.observaciones,
+            motivo: formData.motivo, // ✅ AGREGAR MOTIVO EN EDICIÓN
             skus: [{
                 sku: formData.sku,
                 cantidad: formData.cantidad,
@@ -809,7 +835,6 @@ async function confirmarYEnviarSolicitud() {
         Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor.', confirmButtonColor: '#dc3545' });
     }
 }
-
 // ==========================================
 // Procesar archivo CSV
 // ==========================================

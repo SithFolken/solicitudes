@@ -84,10 +84,25 @@ try {
             if (password_verify($password_input, $tienda['pass_usuario']) || 
                 $password_input === $tienda['pass_usuario']) {
                 
+                // ✅ NUEVO: VALIDACIÓN DE PILOTO ANTES DE PERMITIR EL LOGIN
+                require_once 'validar_piloto.php'; // Incluye el validador
+                $id_tienda_login = (int)$tienda['id_tienda'];
+                
+                if (!validarAccesoPiloto($pdo, $id_tienda_login)) {
+                    // Bloqueamos el login y devolvemos un error específico
+                    echo json_encode([
+                        'success' => false,
+                        'message' => "Tu tienda (ID: {$id_tienda_login}) aún no está habilitada para la fase piloto del Sistema de Cargas.",
+                        'error_type' => 'PILOTO_NO_HABILITADO' // Identificador para el frontend
+                    ]);
+                    exit; // ⛔ DETENEMOS EL PROCESO AQUÍ, NO SE CREA LA SESIÓN
+                }
+                
+                // Si pasa la validación, continuamos normal
                 $rol = 'tienda';
                 
                 // ✅ NUEVO: Obtener el nombre REAL de la tienda desde sugerido_diario
-                $nombre_tienda_real = "Tienda ID: " . $tienda['id_tienda']; // Valor por defecto
+                $nombre_tienda_real = "Tienda ID: " . $tienda['id_tienda']; 
                 try {
                     $stmt_nombre = $pdo->prepare("SELECT nombre_tienda FROM rct.sugerido_diario WHERE id_tienda = :id_tienda LIMIT 1");
                     $stmt_nombre->execute(['id_tienda' => $tienda['id_tienda']]);
@@ -97,14 +112,13 @@ try {
                     }
                 } catch (Exception $e) {
                     error_log("Error obteniendo nombre de tienda: " . $e->getMessage());
-                    // Si falla, se queda con el valor por defecto
                 }
 
                 $user_data = [
                     'id' => $tienda['id_usuario'],
                     'id_tienda' => $tienda['id_tienda'],
-                    'nombre_usuario' => $tienda['nombre_usuario'], // Ej: Angel Perez
-                    'nombre_tienda' => $nombre_tienda_real,        // Ej: SHC CERRILLOS
+                    'nombre_usuario' => $tienda['nombre_usuario'],
+                    'nombre_tienda' => $nombre_tienda_real,
                     'tipo_comprador' => $tienda['tipo_comprador']
                 ];
             }
