@@ -53,16 +53,14 @@ try {
     $analista = $stmt_analista->fetch();
 
     if ($analista) {
-        // Validar contraseña (texto plano o hash)
-        if (password_verify($password_input, $analista['pass']) || 
-            $password_input === $analista['pass']) {
-            
+        if (password_verify($password_input, $analista['pass']) || $password_input === $analista['pass']) {
             $rol = 'analista';
             $user_data = [
                 'id' => $analista['usuario'],
                 'nombre' => $analista['nombre'],
                 'tipo_perfil' => $analista['tipo_perfil'],
-                'codigo_asignacion' => $analista['codigo_asignacion']
+                'codigo_asignacion' => $analista['codigo_asignacion'],
+                'id_tienda' => null // ✅ Agregado para evitar warnings
             ];
         }
     }
@@ -80,28 +78,23 @@ try {
         $tienda = $stmt_tienda->fetch();
 
         if ($tienda) {
-            // Validar contraseña
-            if (password_verify($password_input, $tienda['pass_usuario']) || 
-                $password_input === $tienda['pass_usuario']) {
+            if (password_verify($password_input, $tienda['pass_usuario']) || $password_input === $tienda['pass_usuario']) {
                 
-                // ✅ NUEVO: VALIDACIÓN DE PILOTO ANTES DE PERMITIR EL LOGIN
-                require_once 'validar_piloto.php'; // Incluye el validador
+                // ✅ VALIDACIÓN DE PILOTO ANTES DE PERMITIR EL LOGIN
+                require_once 'validar_piloto.php';
                 $id_tienda_login = (int)$tienda['id_tienda'];
                 
                 if (!validarAccesoPiloto($pdo, $id_tienda_login)) {
-                    // Bloqueamos el login y devolvemos un error específico
                     echo json_encode([
                         'success' => false,
                         'message' => "Tu tienda (ID: {$id_tienda_login}) aún no está habilitada para la fase piloto del Sistema de Cargas.",
-                        'error_type' => 'PILOTO_NO_HABILITADO' // Identificador para el frontend
+                        'error_type' => 'PILOTO_NO_HABILITADO'
                     ]);
-                    exit; // ⛔ DETENEMOS EL PROCESO AQUÍ, NO SE CREA LA SESIÓN
+                    exit;
                 }
                 
-                // Si pasa la validación, continuamos normal
                 $rol = 'tienda';
                 
-                // ✅ NUEVO: Obtener el nombre REAL de la tienda desde sugerido_diario
                 $nombre_tienda_real = "Tienda ID: " . $tienda['id_tienda']; 
                 try {
                     $stmt_nombre = $pdo->prepare("SELECT nombre_tienda FROM rct.sugerido_diario WHERE id_tienda = :id_tienda LIMIT 1");
@@ -126,10 +119,9 @@ try {
     }
 
     // ==========================================
-    // 3. Respuesta final y guardado en sesión
+    // 3. Respuesta final, guardado en sesión y REGISTRO DE ACCESO
     // ==========================================
     if ($rol && $user_data) {
-        // Guardar en sesión
         $_SESSION['user_id'] = $user_data['id'];
         $_SESSION['rol']     = $rol;
         
@@ -138,22 +130,45 @@ try {
             $_SESSION['tipo_perfil'] = $user_data['tipo_perfil'];
             $_SESSION['codigo_asignacion'] = $user_data['codigo_asignacion'];
         } else {
-            // ✅ GUARDAMOS AMBOS NOMBRES EN LA SESIÓN PARA TIENDAS
-            $_SESSION['nombre_usuario'] = $user_data['nombre_usuario']; // Nombre del usuario
-            $_SESSION['nombre'] = $user_data['nombre_usuario'];          // Para compatibilidad
-            $_SESSION['nombre_tienda'] = $user_data['nombre_tienda'];    // Nombre real de la tienda
+            $_SESSION['nombre_usuario'] = $user_data['nombre_usuario'];
+            $_SESSION['nombre'] = $user_data['nombre_usuario'];
+            $_SESSION['nombre_tienda'] = $user_data['nombre_tienda'];
             $_SESSION['id_tienda'] = $user_data['id_tienda'];
             $_SESSION['tipo_comprador'] = $user_data['tipo_comprador'];
         }
 
-        // ✅ CORRECCIÓN: Definir URL de redirección según el rol
+        // ✅ NUEVO: REGISTRAR EL LOGIN EN LA BASE DE DATOS
+        try {
+            $ip_cliente = $_SERVER['REMOTE_ADDR'] ?? 'Desconocida';
+            $id_tienda_log = ($rol === 'tienda') ? $user_data['id_tienda'] : null;
+            
+            $sql_log = "INSERT INTO Analisis_Procesos.registro_accesos 
+                        (user_id, rol, id_tienda, ip_address, fecha_login) 
+                        VALUES (:user_id, :rol, :id_tienda, :ip, NOW())";
+            
+            $stmt_log = $pdo->prepare($sql_log);
+            $stmt_log->execute([
+                'user_id' => $user_data['id'],
+                'rol' => $rol,
+                'id_tienda' => $id_tienda_log,
+                'ip' => $ip_cliente
+            ]);
+            
+            // Guardamos el ID del registro en la sesión para cerrarlo al hacer logout
+            $_SESSION['id_sesion_log'] = $pdo->lastInsertId();
+            
+        } catch (PDOException $e_log) {
+            // Si falla el log, no interrumpimos el login, solo lo reportamos
+            error_log("Error registrando login: " . $e_log->getMessage());
+        }
+
         $url_redireccion = ($rol === 'analista') ? 'views/dashboard.php' : 'views/dashboard_tienda.php';
 
         echo json_encode([
             'success' => true,
             'message' => 'Login exitoso',
             'rol' => $rol,
-            'redirect' => $url_redireccion  // ✅ CORRECCIÓN: Agregar redirect
+            'redirect' => $url_redireccion
         ]);
     } else {
         echo json_encode([
@@ -164,17 +179,9 @@ try {
 
 } catch (PDOException $e) {
     error_log("Error en login API: " . $e->getMessage());
-    
-    echo json_encode([
-        'success' => false, 
-        'message' => 'Error de base de datos'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Error de base de datos']);
 } catch (Exception $e) {
     error_log("Error general en login: " . $e->getMessage());
-    
-    echo json_encode([
-        'success' => false,
-        'message' => 'Error del servidor'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Error del servidor']);
 }
 ?>

@@ -96,7 +96,12 @@ async function cargarSolicitudes() {
 
                 let badgeExcel = '';
                 if (sol.fecha_generacion_excel) {
-                    badgeExcel = `<span class="badge bg-success ms-2" title="Incluido en Excel el ${sol.fecha_generacion_excel}"><i class="bi bi-check-circle me-1"></i>Excel</span>`;
+                    const esAtrasado = sol.tipo_exportacion === 'ATRASADO';
+                    const colorClass = esAtrasado ? 'bg-warning text-dark' : 'bg-success';
+                    const icono = esAtrasado ? 'bi-clock-history' : 'bi-check-circle';
+                    const texto = esAtrasado ? 'Excel Atrasado' : 'Excel';
+                    
+                    badgeExcel = `<span class="badge ${colorClass} ms-2" title="Exportado el ${sol.fecha_generacion_excel}"><i class="bi ${icono} me-1"></i>${texto}</span>`;
                 }
 
                 let btnAccion = '';
@@ -470,6 +475,80 @@ function confirmarProcesamiento(idSolicitud, nombreTienda, totalSkus) {
                 if (dataSesion.success) { Swal.close(); window.location.href = `procesar_carga.php?id=${idSolicitud}`; } 
                 else { Swal.fire('Error', 'No se pudo iniciar la sesión de procesamiento', 'error'); }
             } catch (error) { console.error('Error:', error); Swal.fire('Error', 'No se pudo conectar con el servidor', 'error'); }
+        }
+    });
+}
+
+// ==========================================
+// Rescatar Solicitudes Atrasadas (Últimos 7 días por FECHA DE PROCESAMIENTO)
+// ==========================================
+async function rescatarSolicitudesAtrasadas() {
+    const hoy = new Date();
+    const hace7Dias = new Date();
+    hace7Dias.setDate(hoy.getDate() - 7);
+    
+    const fechaInicio = hace7Dias.toISOString().split('T')[0] + ' 00:00:00';
+    const fechaFin = hoy.toISOString().split('T')[0] + ' 23:59:59';
+    const cicloNombre = hoy.toISOString().split('T')[0];
+
+    Swal.fire({
+        title: '¿Rescatar Solicitudes Atrasadas?',
+        html: `
+            <p>Se buscarán solicitudes <strong>procesadas</strong> en los últimos 7 días que no hayan sido exportadas en el ciclo normal.</p>
+            <div class="alert alert-warning text-start">
+                <strong>📅 Período de procesamiento:</strong><br>
+                Desde: ${fechaInicio}<br>
+                Hasta: ${fechaFin}<br><br>
+                <i class="bi bi-info-circle"></i> Estas solicitudes se marcarán como <strong>"Excel Atrasado"</strong>.
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, generar Excel de Rescate',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#fd7e14',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Buscando solicitudes...',
+                text: 'Verificando solicitudes procesadas en el período de rescate',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const urlValidar = `../api/generar_excel_carga.php?tipo=rescate&ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}&validar=1`;
+            
+            fetch(urlValidar)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.tiene_datos) {
+                        Swal.close();
+                        const urlDescarga = `../api/generar_excel_carga.php?tipo=rescate&ciclo=${cicloNombre}&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}`;
+                        window.open(urlDescarga, '_blank');
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Rescate Exitoso!',
+                            text: `Se exportaron ${data.total_solicitudes} solicitudes atrasadas.`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        }).then(() => { cargarSolicitudes(); });
+                    } else {
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Sin datos para rescatar',
+                            html: data.message || 'No se encontraron solicitudes procesadas en los últimos 7 días para rescatar.',
+                            confirmButtonText: 'Entendido',
+                            confirmButtonColor: '#fd7e14'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+                });
         }
     });
 }

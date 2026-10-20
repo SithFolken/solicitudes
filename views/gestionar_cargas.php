@@ -116,6 +116,9 @@ if (isset($_GET['error'])) {
                         <button type="button" class="btn btn-success" onclick="exportarExcel()">
                             <i class="bi bi-file-earmark-excel me-1"></i> Exportar a Excel
                         </button>
+                        <button class="btn btn-warning btn-sm ms-2" onclick="rescatarSolicitudesAtrasadas()" title="Rescatar solicitudes procesadas en los últimos 7 días">
+                            <i class="bi bi-clock-history me-1"></i> Rescatar Atrasadas (7 días)
+                        </button>
                         <button type="button" class="btn btn-outline-primary btn-actualizar" id="btnActualizar" onclick="cargarSolicitudes()">
                             <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
                         </button>

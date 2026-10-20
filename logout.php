@@ -1,6 +1,23 @@
 <?php
 session_start();
 
+// ✅ NUEVO: Registrar el logout ANTES de destruir la sesión
+if (isset($_SESSION['id_sesion_log'])) {
+    try {
+        require_once 'config/database.php'; // Asegúrate de que esta ruta sea correcta desde la raíz
+        
+        $sql_update = "UPDATE Analisis_Procesos.registro_accesos 
+                       SET fecha_logout = NOW() 
+                       WHERE id_registro = :id_registro";
+        
+        $stmt_update = $pdo->prepare($sql_update);
+        $stmt_update->execute(['id_registro' => $_SESSION['id_sesion_log']]);
+        
+    } catch (PDOException $e) {
+        error_log("Error registrando logout: " . $e->getMessage());
+    }
+}
+
 // 1. Capturar datos del usuario ANTES de destruir la sesión
 $nombre_usuario = $_SESSION['nombre'] ?? 'Usuario';
 $rol = $_SESSION['rol'] ?? 'usuario';
@@ -24,11 +41,7 @@ session_destroy();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sesión Finalizada - Sistema de Cargas</title>
-    
-    <!-- Bootstrap (Opcional, para iconos si no los tienes en otro lado) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    
-    <!-- ✅ Enlace al archivo CSS separado -->
     <link rel="stylesheet" href="assets/css/logout.css">
 </head>
 <body>
@@ -60,7 +73,6 @@ session_destroy();
     </div>
 
     <script>
-        // Contador regresivo
         let segundos = 3;
         const contadorEl = document.getElementById('contador');
         

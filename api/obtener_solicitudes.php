@@ -31,7 +31,6 @@ try {
 
     // 3.1 Filtro por Rol
     if ($rol_actual === 'analista') {
-        // ✅ CONSULTA MAESTRA: Unir por NOMBRE
         $sql_familias = "SELECT DISTINCT d.Familia as id_familia
                          FROM FulFillment.distribucion_analista_familia d
                          INNER JOIN rct.usuarios_solicitudes_oc u 
@@ -88,7 +87,8 @@ try {
     $total_registros = (int)$stmt_total->fetchColumn();
     $total_paginas = $total_registros > 0 ? ceil($total_registros / $por_pagina) : 1;
 
-    $sql = "SELECT s.id_solicitud, s.id_tienda, s.id_familia, s.estado_general, s.fecha_solicitud, s.fecha_generacion_excel,
+    // ✅ CORREGIDO: Se agregó s.tipo_exportacion al SELECT y al GROUP BY
+    $sql = "SELECT s.id_solicitud, s.id_tienda, s.id_familia, s.estado_general, s.fecha_solicitud, s.fecha_generacion_excel, s.tipo_exportacion,
                    COUNT(DISTINCT sc.id_detalle) as total_skus,
                    COALESCE(SUM(sc.carga_solicitada), 0) as total_cantidad_solicitada,
                    COALESCE(t.nombre_tienda, CONCAT('Tienda ID: ', s.id_tienda)) as nombre_tienda
@@ -96,7 +96,7 @@ try {
             LEFT JOIN Analisis_Procesos.solicitudes_carga sc ON s.id_solicitud = sc.id_solicitud
             LEFT JOIN (SELECT id_tienda, MAX(nombre_tienda) as nombre_tienda FROM rct.sugerido_diario GROUP BY id_tienda) t ON s.id_tienda = t.id_tienda
             $where_clause
-            GROUP BY s.id_solicitud, s.id_tienda, s.id_familia, s.estado_general, s.fecha_solicitud, s.fecha_generacion_excel, t.nombre_tienda
+            GROUP BY s.id_solicitud, s.id_tienda, s.id_familia, s.estado_general, s.fecha_solicitud, s.fecha_generacion_excel, s.tipo_exportacion, t.nombre_tienda
             ORDER BY s.id_solicitud DESC
             LIMIT $por_pagina OFFSET $offset";
 

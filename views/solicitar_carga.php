@@ -10,15 +10,13 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'tienda') {
     exit;
 }
 
-// ✅ VALIDACIÓN DE PILOTO (AGREGAR ESTAS 4 LÍNEAS)
+// ✅ VALIDACIÓN DE PILOTO
 require_once '../api/validar_piloto.php';
 require_once '../config/database.php';
 if (!validarAccesoPiloto($pdo, (int)($_SESSION['id_tienda'] ?? 0))) {
     header("Location: ../index.php?error=piloto");
     exit;
 }
-
-
 
 // 2. Obtener datos directamente de la sesión
 $nombre_tienda_real = htmlspecialchars($_SESSION['nombre_tienda'] ?? "Tienda ID: " . ($_SESSION['id_tienda'] ?? '0'));
@@ -174,11 +172,21 @@ require_once '../api/config_motivos.php';
                             </div>
                         </div>
 
+                        <!-- ✅ SECCIÓN MODIFICADA: Carga por Archivo con Botón de Descarga -->
                         <div class="tab-pane fade" id="archivo" role="tabpanel">
                             <div class="card">
                                 <div class="card-body p-4">
-                                    <div class="alert alert-info border-0">
-                                        <i class="bi bi-info-circle me-2"></i><strong>Formato aceptado:</strong> CSV (.csv)<br><strong>Columnas requeridas:</strong> SKU, Cantidad
+                                    <div class="alert alert-info border-0 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            <strong>Formato aceptado:</strong> CSV (.csv)<br>
+                                            <strong>Columnas requeridas:</strong> SKU, Cantidad
+                                        </div>
+                                        <div>
+                                            <a href="../api/descargar_plantilla_csv.php" class="btn btn-sm btn-outline-primary" download>
+                                                <i class="bi bi-download me-1"></i>Descargar Plantilla
+                                            </a>
+                                        </div>
                                     </div>
                                     <form id="formCargaArchivo" enctype="multipart/form-data">
                                         <div class="row g-3">

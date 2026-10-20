@@ -22,6 +22,9 @@ class ArbolDecision {
             'nota_aprobacion' => null
         ];
 
+        // Array para acumular mensajes de aprobación de forma segura (evita duplicados)
+        $notas_aprobacion = [];
+
         // REGLA 0: FUERA DEL MIX
         if (empty($datos_sugerido)) {
             $resultado['puede_cargar'] = false;
@@ -57,16 +60,20 @@ class ArbolDecision {
         // Log para depuración
         error_log("ARBOL: SKU=$sku | MIN=$min_despacho | PV6=$pv6 | Cant=$cantidad_solicitada | Stock=$stock_total_tienda | Quiebre=" . ($es_quiebre ? 'SI' : 'NO') . " | BajoMIN=" . ($stock_bajo_min ? 'SI' : 'NO'));
         
+        // ==========================================
         // PASO 1: REDONDEO AL MIN
+        // ==========================================
         if ($min_despacho > 0 && $cantidad_solicitada < $min_despacho) {
             $multiplos = ceil($cantidad_solicitada / $min_despacho);
             $cantidad_solicitada = $multiplos * $min_despacho;
             $resultado['cantidad_original'] = $cantidad_original;
             $resultado['cantidad_autorizada'] = $cantidad_solicitada;
-            $resultado['nota_aprobacion'] = "Cantidad ajustada al MIN ($min_despacho): $cantidad_original -> $cantidad_solicitada.";
+            $notas_aprobacion[] = "Cantidad ajustada al MIN ($min_despacho): $cantidad_original -> $cantidad_solicitada.";
         }
 
-        // PASO 2: VALIDACIÓN DE QUIEBRE (ahora $es_quiebre ya está definida)
+        // ==========================================
+        // PASO 2: VALIDACIÓN DE QUIEBRE Y SDS
+        // ==========================================
         if ($es_quiebre) {
             $limite_quiebre = 0;
             $tipo_limite = '';
@@ -96,7 +103,8 @@ class ArbolDecision {
                 return $resultado;
             }
             
-            $resultado['nota_aprobacion'] .= " Quiebre aprobado ($cantidad_solicitada <= $limite_quiebre).";
+            $notas_aprobacion[] = "Quiebre aprobado ($cantidad_solicitada <= $limite_quiebre).";
+            
         } else {
             // PASO 3: VALIDACIONES SDS (solo si NO es quiebre)
             
@@ -115,18 +123,20 @@ class ArbolDecision {
 
                 if ($semanas_stock_proyectadas > 12) {
                     $resultado['puede_cargar'] = false;
-                    $resultado['motivo_rechazo'] = "Cantidad excesiva: alcanzarias " . round($semanas_stock_proyectadas, 1) . " semanas (max 12). Stock: $stock_total_tienda, Carga: $cantidad_solicitada.";
+                    $resultado['motivo_rechazo'] = "Cantidad excesiva: alcanzarías " . round($semanas_stock_proyectadas, 1) . " semanas (max 12). Stock: $stock_total_tienda, Carga: $cantidad_solicitada.";
                     $resultado['cantidad_autorizada'] = 0;
                     return $resultado;
                 }
             } else {
                 // Se aplica la excepción
                 error_log("ARBOL: EXCEPCIÓN APLICADA - Stock ($stock_total_tienda) < MIN ($min_despacho). Se omite validación de SDS para permitir reposición.");
-                $resultado['nota_aprobacion'] .= " | Excepción: Stock bajo MIN, se permite carga sin validar límite de SDS.";
+                $notas_aprobacion[] = "Excepción: Stock bajo MIN ($stock_total_tienda < $min_despacho), se permite carga sin validar límite de SDS.";
             }
         }
 
+        // ==========================================
         // PASO 4: REGLA 1 - SIN STOCK EN BODEGA (TRF)
+        // ==========================================
         $tendencia_venta = ($vta_sem_3 > 0) ? (($vta_sem_1 - $vta_sem_3) / $vta_sem_3) * 100 : 0;
         $stock_necesario_lt = ($pv6 > 0 && $lead_time > 0) ? ($pv6 * $lead_time) : 0;
         $es_tendencia_alza = $tendencia_venta > 20;
@@ -140,7 +150,8 @@ class ArbolDecision {
         } elseif ($disp_bod == 0) {
             if ($aplica_bypass && $cantidad_solicitada > 0 && $cantidad_solicitada <= ($stock_necesario_lt * 2)) {
                 $resultado['puede_cargar'] = true;
-                $resultado['nota_aprobacion'] .= " | BYPASS: " . ($es_tendencia_alza ? "Tendencia al alza" : "Demanda emergente") . ".";
+                $notas_aprobacion[] = "BYPASS: " . ($es_tendencia_alza ? "Tendencia al alza" : "Demanda emergente") . ".";
+                $resultado['nota_aprobacion'] = implode(' | ', $notas_aprobacion);
                 return $resultado;
             }
 
@@ -192,15 +203,17 @@ class ArbolDecision {
             }
         }
 
+        // ==========================================
         // PASO 5: BYPASS DE EMERGENCIA
+        // ==========================================
         if ($aplica_bypass && $cantidad_solicitada > 0 && $cantidad_solicitada <= ($stock_necesario_lt * 2)) {
             $resultado['puede_cargar'] = true;
-            $resultado['nota_aprobacion'] .= " | BYPASS: " . ($es_tendencia_alza ? "Tendencia al alza" : "Demanda emergente") . ".";
-            return $resultado;
+            $notas_aprobacion[] = "BYPASS: " . ($es_tendencia_alza ? "Tendencia al alza" : "Demanda emergente") . ".";
         }
 
+        // ==========================================
         // PASO 6: REGLA 5 - STOCK ALTO + SIN BODEGA + TRF
-        // ✅ Agregamos !$stock_bajo_min para que no aplique si estamos reponiendo el mínimo
+        // ==========================================
         if (!$es_quiebre && !$stock_bajo_min) {
             $semanas_stock_actual = ($pv6 > 0) ? ($stock_total_tienda / $pv6) : 999;
             if ($semanas_stock_actual >= 10 && $md_sugerido === 'TRF' && $disp_bod == 0) {
@@ -211,6 +224,9 @@ class ArbolDecision {
                 return $resultado;
             }
         }
+
+        // ✅ Unir todos los mensajes de aprobación con un separador limpio
+        $resultado['nota_aprobacion'] = !empty($notas_aprobacion) ? implode(' | ', $notas_aprobacion) : null;
 
         return $resultado;
     }
