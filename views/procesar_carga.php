@@ -23,8 +23,9 @@ if ($id_solicitud <= 0) {
 require_once '../config/database.php';
 
 try {
-    // 4. VALIDACIÓN CRÍTICA: Verificar que la solicitud exista
-    $sql_validacion = "SELECT estado_general, id_familia FROM Analisis_Procesos.solicitudes WHERE id_solicitud = :id_solicitud";
+    // 4. VALIDACIÓN CRÍTICA: Verificar que la solicitud exista y traer datos para el encabezado
+    $sql_validacion = "SELECT estado_general, id_familia, motivo_carga, observaciones_generales, archivo_venta_pdf 
+                       FROM Analisis_Procesos.solicitudes WHERE id_solicitud = :id_solicitud";
     $stmt_val = $pdo->prepare($sql_validacion);
     $stmt_val->execute(['id_solicitud' => $id_solicitud]);
     $info_solicitud = $stmt_val->fetch(PDO::FETCH_ASSOC);
@@ -44,6 +45,11 @@ try {
     }
 
     $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
+    
+    // Guardamos en variables para usar en el HTML (si el JS falla o para renderizado inicial)
+    $motivo_carga = htmlspecialchars($info_solicitud['motivo_carga'] ?? 'No especificado');
+    $observaciones_generales = htmlspecialchars($info_solicitud['observaciones_generales'] ?? '');
+    $archivo_venta_pdf = $info_solicitud['archivo_venta_pdf'] ?? '';
 
 } catch (PDOException $e) {
     error_log("Error validando solicitud: " . $e->getMessage());
@@ -91,14 +97,48 @@ try {
 
     <div class="container-fluid px-4">
         <div class="card border-0 shadow-sm">
+            
+            <!-- ✅ ENCABEZADO COMPACTO Y MODERNO -->
             <div class="card-header bg-white py-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>SKUs de la Solicitud #<?= $id_solicitud ?></h5>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-outline-danger btn-sm" onclick="rechazarTodaSolicitud()">
-                            <i class="bi bi-x-circle me-1"></i>Rechazar toda la solicitud
-                        </button>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Solicitud #<?= $id_solicitud ?></h5>
+                        <small class="text-muted">Procesando detalles de la carga</small>
                     </div>
+                    <button class="btn btn-outline-danger btn-sm" onclick="rechazarTodaSolicitud()">
+                        <i class="bi bi-x-circle me-1"></i>Rechazar toda
+                    </button>
+                </div>
+                
+                <!-- Panel compacto de información -->
+                <div class="d-flex flex-wrap gap-3 align-items-center p-2 bg-light rounded border">
+                    <!-- Motivo -->
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-tag text-info"></i>
+                        <span class="badge bg-info text-dark fs-6" id="infoMotivo"><?= $motivo_carga ?></span>
+                    </div>
+                    
+                    <!-- Separador vertical -->
+                    <div class="vr bg-secondary" style="height: 20px;"></div>
+                    
+                    <!-- Observaciones (solo si existen) -->
+                    <?php if ($observaciones_generales): ?>
+                    <div class="d-flex align-items-center gap-2 flex-grow-1">
+                        <i class="bi bi-chat-left-text text-muted"></i>
+                        <span class="text-muted small fst-italic" id="infoObservaciones"><?= $observaciones_generales ?></span>
+                    </div>
+                    <div class="vr bg-secondary" style="height: 20px;"></div>
+                    <?php endif; ?>
+                    
+                    <!-- PDF (si existe) -->
+                    <?php if ($archivo_venta_pdf): ?>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-pdf-fill text-danger"></i>
+                        <a href="../<?= htmlspecialchars($archivo_venta_pdf) ?>" target="_blank" class="btn btn-outline-danger btn-sm btn-sm">
+                            <i class="bi bi-eye me-1"></i>Ver PDF
+                        </a>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -120,7 +160,8 @@ try {
                                 <th rowspan="2">MD DEFECTO</th>
                                 <th rowspan="2">MD *</th>
                                 <th rowspan="2">NO CARGAR</th>
-                                <th rowspan="2">MOTIVO</th>
+                                <!-- ✅ CAMBIADO: De "MOTIVO" a "OBS. SKU" para diferenciarlo del motivo general -->
+                                <th rowspan="2" style="min-width: 150px;">OBS. SKU</th>
                             </tr>
                             <tr>
                                 <th class="bg-pv">PV6</th>
@@ -143,7 +184,7 @@ try {
                         </thead>
                         <tbody id="tbodySKUs">
                             <tr>
-                                <td colspan="24" class="text-center py-5">
+                                <td colspan="26" class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Cargando...</span>
                                     </div>
@@ -176,7 +217,7 @@ try {
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-     <script src="../assets/js/global.js"></script>
+    <script src="../assets/js/global.js"></script>
     <script src="../assets/js/procesar_carga.js"></script>
     <script src="../assets/js/sku-tooltip.js"></script>
 </body>

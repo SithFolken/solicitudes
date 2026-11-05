@@ -60,7 +60,7 @@ try {
                 'nombre' => $analista['nombre'],
                 'tipo_perfil' => $analista['tipo_perfil'],
                 'codigo_asignacion' => $analista['codigo_asignacion'],
-                'id_tienda' => null // ✅ Agregado para evitar warnings
+                'id_tienda' => null
             ];
         }
     }
@@ -119,7 +119,33 @@ try {
     }
 
     // ==========================================
-    // 3. Respuesta final, guardado en sesión y REGISTRO DE ACCESO
+    // 3. Si no es analista ni tienda, buscar en SUPERVISORES
+    // ==========================================
+    if (!$rol) {
+        $stmt_supervisor = $pdo->prepare("
+            SELECT id_supervisor, nombre_supervisor, password, cargo, familias
+            FROM Analisis_Procesos.supervisor_app_solicitudes_carga 
+            WHERE id_supervisor = :usuario
+        ");
+        $stmt_supervisor->execute(['usuario' => $usuario_input]);
+        $supervisor = $stmt_supervisor->fetch();
+
+        if ($supervisor) {
+            // Soporta tanto contraseñas hasheadas como texto plano (para transición)
+            if (password_verify($password_input, $supervisor['password']) || $password_input === $supervisor['password']) {
+                $rol = 'supervisor';
+                $user_data = [
+                    'id' => $supervisor['id_supervisor'],
+                    'nombre' => $supervisor['nombre_supervisor'],
+                    'cargo' => $supervisor['cargo'],
+                    'familias' => $supervisor['familias']
+                ];
+            }
+        }
+    }
+
+    // ==========================================
+    // 4. Respuesta final, guardado en sesión y REGISTRO DE ACCESO
     // ==========================================
     if ($rol && $user_data) {
         $_SESSION['user_id'] = $user_data['id'];
@@ -129,15 +155,19 @@ try {
             $_SESSION['nombre'] = $user_data['nombre'];
             $_SESSION['tipo_perfil'] = $user_data['tipo_perfil'];
             $_SESSION['codigo_asignacion'] = $user_data['codigo_asignacion'];
-        } else {
+        } elseif ($rol === 'tienda') {
             $_SESSION['nombre_usuario'] = $user_data['nombre_usuario'];
             $_SESSION['nombre'] = $user_data['nombre_usuario'];
             $_SESSION['nombre_tienda'] = $user_data['nombre_tienda'];
             $_SESSION['id_tienda'] = $user_data['id_tienda'];
             $_SESSION['tipo_comprador'] = $user_data['tipo_comprador'];
+        } elseif ($rol === 'supervisor') {
+            $_SESSION['nombre'] = $user_data['nombre'];
+            $_SESSION['cargo'] = $user_data['cargo'];
+            $_SESSION['familias_supervisor'] = $user_data['familias']; // Por si en el futuro se filtra
         }
 
-        // ✅ NUEVO: REGISTRAR EL LOGIN EN LA BASE DE DATOS
+        // ✅ REGISTRAR EL LOGIN EN LA BASE DE DATOS
         try {
             $ip_cliente = $_SERVER['REMOTE_ADDR'] ?? 'Desconocida';
             $id_tienda_log = ($rol === 'tienda') ? $user_data['id_tienda'] : null;
@@ -154,15 +184,21 @@ try {
                 'ip' => $ip_cliente
             ]);
             
-            // Guardamos el ID del registro en la sesión para cerrarlo al hacer logout
             $_SESSION['id_sesion_log'] = $pdo->lastInsertId();
             
         } catch (PDOException $e_log) {
-            // Si falla el log, no interrumpimos el login, solo lo reportamos
             error_log("Error registrando login: " . $e_log->getMessage());
         }
 
-        $url_redireccion = ($rol === 'analista') ? 'views/dashboard.php' : 'views/dashboard_tienda.php';
+        // ✅ REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
+        $url_redireccion = 'views/dashboard.php'; // Default fallback
+        if ($rol === 'analista') {
+            $url_redireccion = 'views/dashboard.php'; // Ajusta si es gestionar_cargas.php
+        } elseif ($rol === 'tienda') {
+            $url_redireccion = 'views/mis_solicitudes.php';
+        } elseif ($rol === 'supervisor') {
+            $url_redireccion = 'views/supervisor.php';
+        }
 
         echo json_encode([
             'success' => true,

@@ -1,13 +1,10 @@
 <?php
 session_start();
 if (session_status() === PHP_SESSION_NONE) session_start();
-
-// 1. Si no hay sesión, ir al login
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
     exit;
 }
-
 $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
 ?>
 <!DOCTYPE html>
@@ -16,26 +13,19 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Analista - Sistema de Cargas</title>
-    
-    <!-- Bootstrap & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
-    <!-- HOJAS DE ESTILO CORPORATIVAS (El orden es importante) -->
     <link rel="stylesheet" href="../assets/css/dashboard.css">
     <link rel="stylesheet" href="../assets/css/dashboard_analista.css">
 </head>
 <body>
-
-    <!-- Loading -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="text-center">
             <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
             <p class="mt-3 text-muted fw-bold">Cargando dashboard...</p>
         </div>
     </div>
-
-    <!-- Navbar con estilos inline corporativos -->
+    
     <nav class="navbar navbar-dark mb-4" style="background: linear-gradient(135deg, #0056b3 0%, #003d82 100%) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-height: 60px;">
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="dashboard.php" style="color: white !important; font-weight: 700; font-size: 1.25rem;">
@@ -55,12 +45,15 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
     </nav>
 
     <div class="container-fluid px-4">
-        <!-- Header -->
         <div class="page-header">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h1 class="h3 mb-1"><i class="bi bi-speedometer2 me-2"></i>Panel Analista</h1>
                     <p class="text-muted mb-0">Resumen de actividad y métricas</p>
+                    <!-- ✅ CONTENEDOR PARA EL MENSAJE DE SUBFAMILIAS -->
+                    <div id="infoSubfamilias" class="mt-2">
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Cargando información...</small>
+                    </div>
                 </div>
                 <div>
                     <button class="btn btn-outline-primary" onclick="location.reload()">
@@ -83,62 +76,43 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
             </div>
         </div>
 
-        <!-- KPIs Cards (Ahora usan los gradientes corporativos del CSS) -->
+        <!-- KPIs Cards -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
                 <div class="card card-kpi bg-gradient-primary h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2" style="opacity: 0.9;">Pendientes</h6>
-                                <h2 class="mb-0" id="kpiPendientes">-</h2>
-                                <small style="opacity: 0.8;">Solicitudes por revisar</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2" style="opacity: 0.9;">Pendientes</h6><h2 class="mb-0" id="kpiPendientes">-</h2><small style="opacity: 0.8;">Solicitudes por revisar</small></div>
                             <div class="icon"><i class="bi bi-clock-history"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-3 mb-3">
                 <div class="card card-kpi bg-gradient-success h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2" style="opacity: 0.9;">Procesadas Hoy</h6>
-                                <h2 class="mb-0" id="kpiProcesadasHoy">-</h2>
-                                <small style="opacity: 0.8;">Tu productividad</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2" style="opacity: 0.9;">Procesadas Hoy</h6><h2 class="mb-0" id="kpiProcesadasHoy">-</h2><small style="opacity: 0.8;">Tu productividad</small></div>
                             <div class="icon"><i class="bi bi-check-circle"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-3 mb-3">
                 <div class="card card-kpi bg-gradient-warning h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2" style="opacity: 0.9;">Tasa Aprobación</h6>
-                                <h2 class="mb-0" id="kpiTasaAprobacion">-%</h2>
-                                <small style="opacity: 0.8;">SKUs aprobados</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2" style="opacity: 0.9;">Tasa Aprobación</h6><h2 class="mb-0" id="kpiTasaAprobacion">-%</h2><small style="opacity: 0.8;">SKUs aprobados</small></div>
                             <div class="icon"><i class="bi bi-percent"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-3 mb-3">
                 <div class="card card-kpi bg-gradient-info h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2" style="opacity: 0.9;">Total SKUs</h6>
-                                <h2 class="mb-0" id="kpiTotalSKUs">-</h2>
-                                <small style="opacity: 0.8;">Procesados este mes</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2" style="opacity: 0.9;">Total SKUs</h6><h2 class="mb-0" id="kpiTotalSKUs">-</h2><small style="opacity: 0.8;">Procesados este mes</small></div>
                             <div class="icon"><i class="bi bi-boxes"></i></div>
                         </div>
                     </div>
@@ -152,41 +126,27 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
                 <div class="card card-kpi border-start border-4 border-success h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2 text-muted">A Tiempo</h6>
-                                <h2 class="mb-0 text-success" id="kpiSlaTiempo">-</h2>
-                                <small class="text-muted">Menos de 36 hrs</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2 text-muted">A Tiempo</h6><h2 class="mb-0 text-success" id="kpiSlaTiempo">-</h2><small class="text-muted">Menos de 36 hrs</small></div>
                             <div class="icon text-success"><i class="bi bi-check-circle-fill"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-4 mb-3">
                 <div class="card card-kpi border-start border-4 border-warning h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2 text-muted">Por Cumplirse</h6>
-                                <h2 class="mb-0 text-warning" id="kpiSlaUrgente">-</h2>
-                                <small class="text-muted">Entre 36 y 48 hrs</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2 text-muted">Por Cumplirse</h6><h2 class="mb-0 text-warning" id="kpiSlaUrgente">-</h2><small class="text-muted">Entre 36 y 48 hrs</small></div>
                             <div class="icon text-warning"><i class="bi bi-exclamation-circle-fill"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-4 mb-3">
                 <div class="card card-kpi border-start border-4 border-danger h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-uppercase mb-2 text-muted">Vencidas</h6>
-                                <h2 class="mb-0 text-danger" id="kpiSlaVencidas">-</h2>
-                                <small class="text-muted">Más de 48 hrs</small>
-                            </div>
+                            <div><h6 class="text-uppercase mb-2 text-muted">Vencidas</h6><h2 class="mb-0 text-danger" id="kpiSlaVencidas">-</h2><small class="text-muted">Más de 48 hrs</small></div>
                             <div class="icon text-danger"><i class="bi bi-x-octagon-fill"></i></div>
                         </div>
                     </div>
@@ -196,51 +156,21 @@ $nombre_analista = htmlspecialchars($_SESSION['nombre'] ?? 'Analista');
 
         <!-- Gráficos -->
         <div class="row">
-            <div class="col-md-6">
-                <div class="chart-container">
-                    <h5><i class="bi bi-pie-chart me-2"></i>Distribución por Estado</h5>
-                    <div id="chartEstado" style="height: 350px;"></div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="chart-container">
-                    <h5><i class="bi bi-bar-chart me-2"></i>Solicitudes Procesadas (Últimos 7 días)</h5>
-                    <div id="chartDias" style="height: 350px;"></div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="chart-container">
-                    <h5><i class="bi bi-pie-chart me-2"></i>Distribución por Método de Compra</h5>
-                    <div id="chartMD" style="height: 350px;"></div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="chart-container">
-                    <h5><i class="bi bi-trophy me-2"></i>Top 10 Tiendas con Más Solicitudes</h5>
-                    <div id="chartTiendas" style="height: 350px;"></div>
-                </div>
-            </div>
-
-            <!-- Gráfico 5: Top SKUs Más Solicitados -->
-            <div class="col-md-12">
-                <div class="chart-container">
-                    <h5><i class="bi bi-bar-chart-steps me-2"></i>Top 10 SKUs Más Solicitados <small class="text-muted">(clic para ver detalle por tienda)</small></h5>
-                    <div id="chartTopSKUs" style="height: 450px;"></div>
-                </div>
-            </div>
+            <div class="col-md-6"><div class="chart-container"><h5><i class="bi bi-pie-chart me-2"></i>Distribución por Estado</h5><div id="chartEstado" style="height: 350px;"></div></div></div>
+            <div class="col-md-6"><div class="chart-container"><h5><i class="bi bi-bar-chart me-2"></i>Solicitudes Procesadas (Últimos 7 días)</h5><div id="chartDias" style="height: 350px;"></div></div></div>
+            <div class="col-md-6"><div class="chart-container"><h5><i class="bi bi-pie-chart me-2"></i>Distribución por Método de Compra</h5><div id="chartMD" style="height: 350px;"></div></div></div>
+            <div class="col-md-6"><div class="chart-container"><h5><i class="bi bi-trophy me-2"></i>Top 10 Tiendas con Más Solicitudes</h5><div id="chartTiendas" style="height: 350px;"></div></div></div>
+            <div class="col-md-12"><div class="chart-container"><h5><i class="bi bi-bar-chart-steps me-2"></i>Top 10 SKUs Más Solicitados <small class="text-muted">(clic para ver detalle por tienda)</small></h5><div id="chartTopSKUs" style="height: 450px;"></div></div></div>
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.highcharts.com/highcharts.js"></script>
     <script src="https://code.highcharts.com/modules/drilldown.js"></script>
     <script src="https://code.highcharts.com/modules/exporting.js"></script>
     <script src="https://code.highcharts.com/modules/accessibility.js"></script>
-     <script src="../assets/js/global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../assets/js/global.js"></script>
     <script src="../assets/js/dashboard_analista.js"></script>
 </body>
 </html>

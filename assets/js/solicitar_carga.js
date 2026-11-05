@@ -1,12 +1,7 @@
-// assets/js/solicitar_carga.js
-
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM cargado, inicializando...');
     
-    // 1. Cargar familias (siempre)
-    await cargarFamilias();
-    
-    // 2. Detectar modo edición
+    // 1. Detectar modo edición
     const urlParams = new URLSearchParams(window.location.search);
     const idEditar = urlParams.get('editar');
     const esEdicion = idEditar && parseInt(idEditar) > 0;
@@ -16,10 +11,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         await inicializarModoEdicion(parseInt(idEditar));
     }
     
-    // 3. Event listeners del formulario manual
+    // ✅ Lógica para mostrar/ocultar campo de PDF según el motivo
+    const motivosConPDF = ['VENTA_CLIENTE_BLACK', 'VENTA_CLIENTE_CONTACTABILIDAD', 'VENTA_CLIENTE_VE'];
+    
+    function toggleCampoPDF(selectElement) {
+        const isArchivo = selectElement.id === 'motivoArchivo';
+        const containerId = isArchivo ? 'containerUploadPDFArchivo' : 'containerUploadPDF';
+        const inputId = isArchivo ? 'archivoVentaPDFArchivo' : 'archivoVentaPDF';
+        
+        const container = document.getElementById(containerId);
+        const input = document.getElementById(inputId);
+        
+        if (!container || !input) return;
+
+        if (motivosConPDF.includes(selectElement.value)) {
+            container.style.display = 'block';
+            input.required = true;
+        } else {
+            container.style.display = 'none';
+            input.required = false;
+            input.value = '';
+        }
+    }
+
+    const selectMotivoManual = document.getElementById('motivo');
+    if (selectMotivoManual) {
+        selectMotivoManual.addEventListener('change', function() { toggleCampoPDF(this); });
+        toggleCampoPDF(selectMotivoManual);
+    }
+
+    const selectMotivoArchivo = document.getElementById('motivoArchivo');
+    if (selectMotivoArchivo) {
+        selectMotivoArchivo.addEventListener('change', function() { toggleCampoPDF(this); });
+        toggleCampoPDF(selectMotivoArchivo);
+    }
+    
+    // 2. Event listeners del formulario manual
     const formManual = document.getElementById('formSolicitudManual');
     if (formManual) {
-        // Autocomplete dinámico (formulario normal)
         const inputSku = document.getElementById('sku');
         if (inputSku) {
             let timeoutId = null;
@@ -48,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    // 4. Event listener del formulario de archivo
+    // 3. Event listener del formulario de archivo
     const formArchivo = document.getElementById('formCargaArchivo');
     if (formArchivo) {
         formArchivo.addEventListener('submit', async (e) => {
@@ -57,44 +86,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 });
-
-// ==========================================
-// Cargar familias
-// ==========================================
-async function cargarFamilias() {
-    try {
-        const response = await fetch('../api/obtener_familias.php');
-        const data = await response.json();
-        
-        if (data.success && data.data) {
-            const selectManual = document.getElementById('idFamilia');
-            const selectArchivo = document.getElementById('idFamiliaArchivo');
-            
-            if (selectManual) selectManual.innerHTML = '<option value="">Seleccione la familia...</option>';
-            if (selectArchivo) selectArchivo.innerHTML = '<option value="">Seleccione la familia...</option>';
-            
-            data.data.forEach(familia => {
-                const texto = `${familia.id_familia} - ${familia.descripcion_familia}`;
-                
-                if (selectManual) {
-                    const option = document.createElement('option');
-                    option.value = familia.id_familia;
-                    option.textContent = texto;
-                    selectManual.appendChild(option);
-                }
-                
-                if (selectArchivo) {
-                    const option = document.createElement('option');
-                    option.value = familia.id_familia;
-                    option.textContent = texto;
-                    selectArchivo.appendChild(option);
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Error cargando familias:', error);
-    }
-}
 
 // ==========================================
 // Inicializar Modo Edición
@@ -135,14 +126,15 @@ async function inicializarModoEdicion(idEditar) {
             return;
         }
         
-        const selectFamilia = document.getElementById('idFamilia');
-        if (selectFamilia && data.solicitud.id_familia) {
-            selectFamilia.value = data.solicitud.id_familia;
-        }
-        
         const obsInput = document.getElementById('observaciones');
         if (obsInput && data.solicitud.observaciones_generales) {
             obsInput.value = data.solicitud.observaciones_generales;
+        }
+        
+        const motivoSelect = document.getElementById('motivo');
+        if (motivoSelect && data.solicitud.motivo_carga) {
+            motivoSelect.value = data.solicitud.motivo_carga;
+            motivoSelect.dispatchEvent(new Event('change'));
         }
         
         const skus = data.skus || [];
@@ -271,9 +263,6 @@ function construirTablaEdicionMultiple(skus, idEditar) {
     }, 100);
 }
 
-// ==========================================
-// Inicializar Autocomplete en la Tabla
-// ==========================================
 function inicializarAutocompleteEnTabla() {
     const inputsSKU = document.querySelectorAll('.sku-editable');
     inputsSKU.forEach(input => {
@@ -281,9 +270,6 @@ function inicializarAutocompleteEnTabla() {
     });
 }
 
-// ==========================================
-// Inicializar Autocomplete en un Input Específico
-// ==========================================
 function inicializarAutocompleteEnInput(input) {
     let timeoutId = null;
     
@@ -347,9 +333,6 @@ function inicializarAutocompleteEnInput(input) {
     });
 }
 
-// ==========================================
-// Agregar Nueva Fila SKU
-// ==========================================
 function agregarNuevaFilaSKU() {
     const tbody = document.getElementById('tbodyEdicionSKUs');
     if (!tbody) return;
@@ -383,9 +366,6 @@ function agregarNuevaFilaSKU() {
     }, 100);
 }
 
-// ==========================================
-// Funciones auxiliares de la tabla
-// ==========================================
 function eliminarFilaSKU(boton) {
     const fila = boton.closest('tr');
     if (fila) fila.remove();
@@ -396,16 +376,12 @@ function cancelarEdicion() {
 }
 
 // ==========================================
-// Guardar Edición Múltiple
+// Guardar Edición Múltiple (CORREGIDO - Sin validación de familia)
 // ==========================================
 async function guardarEdicionMultiple(idSolicitud) {
-    const idFamilia = document.getElementById('idFamilia').value;
+    // ✅ YA NO SE OBTIENE NI SE VALIDA idFamilia
     const observaciones = document.getElementById('observaciones').value;
-    
-    if (!idFamilia) {
-        Swal.fire('Campo requerido', 'Debe seleccionar la familia', 'warning');
-        return;
-    }
+    const motivo = document.getElementById('motivo')?.value || '';
     
     const skus = [];
     const filas = document.querySelectorAll('#tbodyEdicionSKUs tr');
@@ -449,7 +425,12 @@ async function guardarEdicionMultiple(idSolicitud) {
         const response = await fetch('../api/actualizar_solicitud.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_solicitud: parseInt(idSolicitud), observaciones: observaciones, skus: skus })
+            body: JSON.stringify({ 
+                id_solicitud: parseInt(idSolicitud), 
+                observaciones: observaciones, 
+                motivo: motivo,
+                skus: skus 
+            })
         });
         
         const texto = await response.text();
@@ -469,7 +450,7 @@ async function guardarEdicionMultiple(idSolicitud) {
 }
 
 // ==========================================
-// Buscar sugerencias de SKU (formulario normal)
+// Buscar sugerencias de SKU
 // ==========================================
 async function buscarSugerenciasSKU(termino) {
     const contenedor = document.getElementById('sugerenciasSKU');
@@ -506,34 +487,49 @@ async function buscarSugerenciasSKU(termino) {
     }
 }
 
-
 // ==========================================
-// 1. Mostrar Vista Previa (CON VALIDACIÓN DE QUIEBRE Y MIN)
+// 1. Mostrar Vista Previa
 // ==========================================
 async function mostrarPreviewSolicitud() {
-    const familiaSelect = document.getElementById('idFamilia'); 
-    const familiaTexto = familiaSelect ? familiaSelect.options[familiaSelect.selectedIndex].text : 'No seleccionada';
-    
+    const motivoSelect = document.getElementById('motivo');
+    const motivo = motivoSelect ? motivoSelect.value : '';
+    const motivosConPDF = ['VENTA_CLIENTE_BLACK', 'VENTA_CLIENTE_CONTACTABILIDAD', 'VENTA_CLIENTE_VE'];
+
+    if (motivosConPDF.includes(motivo)) {
+        const inputPDF = document.getElementById('archivoVentaPDF');
+        const errorDiv = document.getElementById('errorPDF');
+
+        if (!inputPDF || !inputPDF.files || inputPDF.files.length === 0) {
+            if(errorDiv) { errorDiv.textContent = '⚠️ Debes adjuntar el documento de venta en PDF.'; errorDiv.style.display = 'block'; }
+            Swal.fire({ icon: 'warning', title: 'Documento obligatorio', text: 'Debes adjuntar el documento de venta en PDF para este motivo.', confirmButtonColor: '#0d6efd' });
+            return;
+        }
+
+        const file = inputPDF.files[0];
+        if (file.type !== 'application/pdf') {
+            if(errorDiv) { errorDiv.textContent = '⚠️ El archivo debe ser un PDF válido.'; errorDiv.style.display = 'block'; }
+            Swal.fire({ icon: 'error', title: 'Formato inválido', text: 'El archivo debe ser un PDF válido.' });
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            if(errorDiv) { errorDiv.textContent = '⚠️ El archivo no debe superar los 10MB.'; errorDiv.style.display = 'block'; }
+            Swal.fire({ icon: 'error', title: 'Archivo muy pesado', text: 'El PDF no debe superar los 10MB.' });
+            return;
+        }
+        if(errorDiv) errorDiv.style.display = 'none';
+    }
+
     const sku = document.getElementById('sku')?.value || '';
     const descripcion = document.getElementById('descripcion')?.value || 'Sin descripción';
     const cantidadInput = document.getElementById('cantidad')?.value || '0';
     const observaciones = document.getElementById('observaciones')?.value || '';
 
     if (!sku || parseInt(cantidadInput) <= 0) {
-        Swal.fire({ 
-            icon: 'warning', 
-            title: 'Campos incompletos', 
-            text: 'Por favor ingresa un SKU válido y una cantidad mayor a 0.',
-            confirmButtonColor: '#0d6efd'
-        });
+        Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Por favor ingresa un SKU válido y una cantidad mayor a 0.', confirmButtonColor: '#0d6efd' });
         return;
     }
 
-    Swal.fire({
-        title: 'Cargando detalles...',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
-    });
+    Swal.fire({ title: 'Cargando detalles...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
     try {
         const response = await fetch(`../api/obtener_detalle_producto.php?sku=${encodeURIComponent(sku)}`);
@@ -553,11 +549,7 @@ async function mostrarPreviewSolicitud() {
         }
 
         const producto = data.producto;
-        
-        // Calcular pallets
         const unidPallet = parseFloat(producto.unid_pallet) || 1;
-        
-        // 1️⃣ Obtener MIN y ajustar cantidad si es necesario
         const minDespacho = parseFloat(producto.min_despacho) || 0;
         let cantidadFinal = parseInt(cantidadInput);
         let mensajeMid = '';
@@ -566,63 +558,32 @@ async function mostrarPreviewSolicitud() {
         if (minDespacho > 0 && cantidadFinal < minDespacho) {
             const multiplos = Math.ceil(cantidadFinal / minDespacho);
             cantidadFinal = multiplos * minDespacho;
-            
-            mensajeMid = `
-                <div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <strong>Ajuste MIN:</strong> ${cantidadOriginal} → ${cantidadFinal} (Mín: ${minDespacho})
-                </div>
-            `;
+            mensajeMid = `<div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Ajuste MIN:</strong> ${cantidadOriginal} → ${cantidadFinal} (Mín: ${minDespacho})</div>`;
         }
         
         const palletsExactos = cantidadFinal > 0 ? (cantidadFinal / unidPallet) : 0;
-        
-        // Calcular SDS Proyectado
         const stockActual = (parseFloat(producto.disp_tda) || 0) + (parseFloat(producto.pend_tda) || 0);
         const pv6 = parseFloat(producto.PV6) || 0;
         const stockProyectado = stockActual + cantidadFinal;
         const sdsProyectada = pv6 > 0 ? (stockProyectado / pv6) : 999;
         const sdsActual = pv6 > 0 ? (stockActual / pv6) : 0;
 
-        // 2️⃣ Validación de SDS ACTUAL (siempre se valida)
         let alertaSdsActual = '';
         if (sdsActual > 12) {
-            alertaSdsActual = `
-                <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <strong>⚠️ SDS Actual excesiva:</strong> ${sdsActual.toFixed(1)} semanas (máx 12).<br>
-                    <small>El sistema rechazará esta solicitud automáticamente.</small>
-                </div>
-            `;
+            alertaSdsActual = `<div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i><strong>⚠️ SDS Actual excesiva:</strong> ${sdsActual.toFixed(1)} semanas (máx 12).<br><small>El sistema rechazará esta solicitud automáticamente.</small></div>`;
         }
 
-        // 3️⃣ Validación de SDS PROYECTADA (siempre se valida, excepto si stock < MIN)
         let alertaSdsProyectada = '';
         const stockBajoMin = (minDespacho > 0 && stockActual < minDespacho);
         
         if (!stockBajoMin && sdsProyectada > 12) {
-            alertaSdsProyectada = `
-                <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <strong>⛔ Cantidad excesiva:</strong> Alcanzarías <strong>${sdsProyectada.toFixed(1)} semanas</strong> (máx 12 permitidas).<br>
-                    <small>Stock actual: ${stockActual} | Carga solicitada: ${cantidadFinal} | SDS proyectada: ${sdsProyectada.toFixed(1)}</small><br>
-                    <strong>El sistema RECHAZARÁ esta solicitud.</strong>
-                </div>
-            `;
+            alertaSdsProyectada = `<div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i><strong>⛔ Cantidad excesiva:</strong> Alcanzarías <strong>${sdsProyectada.toFixed(1)} semanas</strong> (máx 12 permitidas).<br><small>Stock actual: ${stockActual} | Carga solicitada: ${cantidadFinal} | SDS proyectada: ${sdsProyectada.toFixed(1)}</small><br><strong>El sistema RECHAZARÁ esta solicitud.</strong></div>`;
         } else if (stockBajoMin) {
-            // Excepción: stock bajo MIN
             if (sdsProyectada > 12) {
-                alertaSdsProyectada = `
-                    <div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                        <i class="bi bi-info-circle-fill me-1"></i>
-                        <strong>Excepción aplicada:</strong> Stock actual (${stockActual}) está por debajo del MIN (${minDespacho}).<br>
-                        <small>Se permite cargar ${cantidadFinal} unidades aunque las SDS proyectadas sean ${sdsProyectada.toFixed(1)} semanas (reposición obligatoria).</small>
-                    </div>
-                `;
+                alertaSdsProyectada = `<div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;"><i class="bi bi-info-circle-fill me-1"></i><strong>Excepción aplicada:</strong> Stock actual (${stockActual}) está por debajo del MIN (${minDespacho}).<br><small>Se permite cargar ${cantidadFinal} unidades aunque las SDS proyectadas sean ${sdsProyectada.toFixed(1)} semanas (reposición obligatoria).</small></div>`;
             }
         }
 
-        // 4️⃣ Validación de límites para productos en QUIEBRE (stock = 0)
         const esQuiebre = stockActual === 0;
         let alertaQuiebre = '';
 
@@ -630,40 +591,35 @@ async function mostrarPreviewSolicitud() {
             let limiteMaximo = null;
             let tipoLimite = '';
             
-            if (minDespacho > 0) {
+            if (minDespacho > 0 && pv6 > 0) {
+                const limiteMin = minDespacho * 2;
+                const limitePv6 = Math.ceil(pv6 * 2);
+                limiteMaximo = Math.max(limiteMin, limitePv6);
+                tipoLimite = `Mayor entre 2x MIN (${limiteMin}) y 2x PV6 (${limitePv6})`;
+            } else if (minDespacho > 0) {
                 limiteMaximo = minDespacho * 2;
-                tipoLimite = `2x MIN (${minDespacho})`;
+                tipoLimite = `2x MIN (MIN=${minDespacho})`;
             } else if (pv6 > 0) {
-                limiteMaximo = Math.ceil(pv6 * 12);
-                tipoLimite = `12 semanas de stock`;
+                limiteMaximo = Math.ceil(pv6 * 2);
+                tipoLimite = `2x PV6 (PV6=${pv6})`;
             } else {
-                const promedioSem = ((parseFloat(producto.v1)||0) + (parseFloat(producto.v2)||0) + (parseFloat(producto.v3)||0)) / 3;
-                if (promedioSem > 0) {
-                    limiteMaximo = Math.ceil(promedioSem * 12);
-                    tipoLimite = '12 semanas (promedio ventas)';
-                } else {
-                    limiteMaximo = 1000;
-                    tipoLimite = 'tope absoluto (sin datos)';
-                }
+                limiteMaximo = 100;
+                tipoLimite = 'tope absoluto (sin datos)';
+            }
+            
+            if (minDespacho > 0) {
+                limiteMaximo = Math.floor(limiteMaximo / minDespacho) * minDespacho;
+                if (limiteMaximo < minDespacho) limiteMaximo = minDespacho;
             }
             
             if (cantidadFinal > limiteMaximo) {
-                alertaQuiebre = `
-                    <div class="alert alert-danger mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        <strong> Producto en quiebre - Cantidad excesiva:</strong><br>
-                        Solicitado: <strong>${cantidadFinal}</strong> unidades excede el máximo permitido de <strong>${limiteMaximo}</strong> (${tipoLimite}).<br>
-                        <small>El sistema RECHAZARÁ esta solicitud. Reduzca la cantidad.</small>
-                    </div>
-                `;
+                alertaQuiebre = `<div class="alert alert-warning mb-3" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i><strong>⚠️ Producto en quiebre - Cantidad ajustada automáticamente:</strong><br>Solicitado: <strong>${cantidadFinal}</strong> unidades. El sistema ajustará a <strong>${limiteMaximo}</strong> unidades (${tipoLimite}).<br><small>Al confirmar, la cantidad se reducirá al máximo permitido.</small></div>`;
+                cantidadFinal = limiteMaximo;
             }
         }
         
-        // Llenar datos básicos
-        document.getElementById('confirm_familia').textContent = familiaTexto;
         document.getElementById('confirm_tienda').textContent = (typeof NOMBRE_TIENDA !== 'undefined' ? NOMBRE_TIENDA : 'Tienda') + (typeof ID_TIENDA !== 'undefined' && ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
         
-        // Construir tabla
         const tbody = document.getElementById('confirm_tabla_detalle');
         tbody.innerHTML = `
             <tr>
@@ -681,25 +637,25 @@ async function mostrarPreviewSolicitud() {
                 <td class="text-center">${producto.lt || 0}</td>
                 <td class="text-center">${producto.disp_tda || 0}</td>
                 <td class="text-center">${producto.pend_tda || 0}</td>
-                <td class="text-center">
-                    <strong class="${sdsProyectada > 12 && !stockBajoMin ? 'text-danger' : ''}">${sdsProyectada.toFixed(1)}</strong>
-                </td>
-                <td class="text-center">
-                    <strong class="text-primary fs-6">${cantidadFinal}</strong>
-                    ${cantidadFinal != cantidadOriginal ? `<br><small class="text-muted" style="font-size: 0.75rem;">(Original: ${cantidadOriginal})</small>` : ''}
-                </td>
-                <td class="text-center">
-                    <strong class="text-primary">${palletsExactos.toFixed(3)}</strong><br>
-                    <small class="text-muted" style="font-size: 10px;">(${unidPallet} u/pl)</small>
-                </td>
+                <td class="text-center"><strong class="${sdsProyectada > 12 && !stockBajoMin ? 'text-danger' : ''}">${sdsProyectada.toFixed(1)}</strong></td>
+                <td class="text-center"><strong class="text-primary fs-6">${cantidadFinal}</strong>${cantidadFinal != cantidadOriginal ? `<br><small class="text-muted" style="font-size: 0.75rem;">(Original: ${cantidadOriginal})</small>` : ''}</td>
+                <td class="text-center"><strong class="text-primary">${palletsExactos.toFixed(3)}</strong><br><small class="text-muted" style="font-size: 10px;">(${unidPallet} u/pl)</small></td>
                 <td class="text-center">${producto.md_defecto || '-'}</td>
             </tr>
         `;
 
-        // Insertar mensajes de advertencia
+        const contenedorExistente = document.getElementById('mensajesAdvertenciaContainer');
+        if (contenedorExistente) contenedorExistente.remove();
+
+        let htmlMensajes = '';
+        if (alertaSdsActual) htmlMensajes += alertaSdsActual;
+        if (alertaSdsProyectada) htmlMensajes += alertaSdsProyectada;
+        if (mensajeMid) htmlMensajes += mensajeMid;
+        if (alertaQuiebre) htmlMensajes += alertaQuiebre;
+
         const mensajesContainer = document.createElement('div');
         mensajesContainer.id = 'mensajesAdvertenciaContainer';
-        mensajesContainer.innerHTML = (alertaSdsActual || '') + (alertaSdsProyectada || '') + (mensajeMid || '') + (alertaQuiebre || '');
+        mensajesContainer.innerHTML = htmlMensajes;
         
         const seccionDetalle = tbody.closest('.table-responsive')?.previousElementSibling;
         if (seccionDetalle) {
@@ -708,7 +664,6 @@ async function mostrarPreviewSolicitud() {
             tbody.parentNode.insertBefore(mensajesContainer, tbody);
         }
 
-        // Mostrar u ocultar observaciones
         if (observaciones.trim()) {
             document.getElementById('confirm_observaciones_container').style.display = 'block';
             document.getElementById('confirm_observaciones').textContent = observaciones;
@@ -716,55 +671,23 @@ async function mostrarPreviewSolicitud() {
             document.getElementById('confirm_observaciones_container').style.display = 'none';
         }
 
-        // Guardar cantidad final ajustada para el envío
         const btnEnviar = document.getElementById('btnConfirmarEnviar');
         if (btnEnviar) {
             btnEnviar.setAttribute('data-cantidad-final', cantidadFinal);
         }
 
-        // Mostrar el modal
         const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
         modal.show();
         
     } catch (error) {
         console.error('Error:', error);
         Swal.close();
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'No se pudieron cargar los detalles del producto'
-        });
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron cargar los detalles del producto' });
     }
-}
-// Función auxiliar para mostrar modal sin detalles (cuando no hay datos en sugerido)
-function mostrarModalSinDetalles(familiaTexto, sku, descripcion, cantidad, observaciones) {
-    document.getElementById('confirm_familia').textContent = familiaTexto;
-    document.getElementById('confirm_tienda').textContent = (typeof NOMBRE_TIENDA !== 'undefined' ? NOMBRE_TIENDA : 'Tienda') + (typeof ID_TIENDA !== 'undefined' && ID_TIENDA ? ` (ID: ${ID_TIENDA})` : '');
-    
-    const tbody = document.getElementById('confirm_tabla_detalle');
-    tbody.innerHTML = `
-        <tr>
-            <td><strong>${sku}</strong></td>
-            <td>${descripcion}</td>
-            <td colspan="11" class="text-center text-muted">
-                <i class="bi bi-info-circle me-2"></i>Sin datos disponibles en el sugerido diario
-            </td>
-        </tr>
-    `;
-
-    if (observaciones.trim()) {
-        document.getElementById('confirm_observaciones_container').style.display = 'block';
-        document.getElementById('confirm_observaciones').textContent = observaciones;
-    } else {
-        document.getElementById('confirm_observaciones_container').style.display = 'none';
-    }
-
-    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
-    modal.show();
 }
 
 // ==========================================
-// 2. Confirmar y Enviar (USA CANTIDAD AJUSTADA AL MIN Y ENVÍA MOTIVO)
+// 2. Confirmar y Enviar
 // ==========================================
 async function confirmarYEnviarSolicitud() {
     const modalEl = document.getElementById('modalConfirmacion');
@@ -779,48 +702,35 @@ async function confirmarYEnviarSolicitud() {
 
     const btnConfirmar = document.getElementById('btnConfirmarEnviar');
     const cantidadFinal = btnConfirmar?.getAttribute('data-cantidad-final') || document.getElementById('cantidad')?.value || 0;
-    const motivo = document.getElementById('motivo')?.value || ''; // ✅ OBTENER MOTIVO
+    const motivo = document.getElementById('motivo')?.value || '';
 
-    const formData = {
-        id_familia: document.getElementById('idFamilia')?.value || '',
-        sku: document.getElementById('sku')?.value || '',
-        descripcion: document.getElementById('descripcion')?.value || '',
-        cantidad: parseInt(cantidadFinal),
-        observaciones: document.getElementById('observaciones')?.value || '',
-        motivo: motivo // ✅ AGREGAR MOTIVO
-    };
+    const formData = new FormData();
+    formData.append('sku', document.getElementById('sku')?.value || '');
+    formData.append('descripcion', document.getElementById('descripcion')?.value || '');
+    formData.append('cantidad', parseInt(cantidadFinal));
+    formData.append('observaciones', document.getElementById('observaciones')?.value || '');
+    formData.append('motivo', motivo);
+
+    const inputPDF = document.getElementById('archivoVentaPDF');
+    if (inputPDF && inputPDF.files && inputPDF.files.length > 0) {
+        formData.append('archivo_venta_pdf', inputPDF.files[0]);
+    }
 
     let url = '../api/solicitar_carga.php';
-    let payload = formData;
-
     if (esEdicion) {
         url = '../api/actualizar_solicitud.php';
-        payload = {
-            id_solicitud: parseInt(idEditar),
-            observaciones: formData.observaciones,
-            motivo: formData.motivo, // ✅ AGREGAR MOTIVO EN EDICIÓN
-            skus: [{
-                sku: formData.sku,
-                cantidad: formData.cantidad,
-                descripcion: formData.descripcion
-            }]
-        };
+        formData.append('id_solicitud', parseInt(idEditar));
     }
 
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
+        const response = await fetch(url, { method: 'POST', body: formData });
         const data = await response.json();
 
         if (data.success) {
             Swal.fire({
                 icon: 'success',
                 title: esEdicion ? '¡Solicitud Actualizada!' : '¡Solicitud Creada!',
-                html: esEdicion ? 'Los cambios han sido guardados y re-evaluados.' : `La solicitud <strong>#${data.id_solicitud}</strong> ha sido registrada exitosamente.`,
+                html: esEdicion ? 'Los cambios han sido guardados y re-evaluados.' : `La solicitud <strong>#${data.id_solicitud}</strong> ha sido registrada exitosamente y asignada automáticamente.`,
                 confirmButtonColor: '#198754',
                 timer: 3000,
                 timerProgressBar: true
@@ -835,19 +745,40 @@ async function confirmarYEnviarSolicitud() {
         Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo comunicar con el servidor.', confirmButtonColor: '#dc3545' });
     }
 }
+
 // ==========================================
-// Procesar archivo CSV
+// Procesar archivo CSV (CORREGIDO - Sin validación de familia)
 // ==========================================
 async function procesarArchivoCarga() {
     console.log('🔄 Iniciando procesamiento de archivo...');
     const form = document.getElementById('formCargaArchivo');
     const formData = new FormData(form);
     
-    const idFamilia = formData.get('id_familia');
-    if (!idFamilia) {
-        Swal.fire('Campo requerido', 'Debe seleccionar la familia', 'warning');
-        return;
+    const motivoArchivo = formData.get('motivoArchivo') || '';
+    formData.delete('motivoArchivo');
+    formData.append('motivo', motivoArchivo);
+    
+    const motivosConPDF = ['VENTA_CLIENTE_BLACK', 'VENTA_CLIENTE_CONTACTABILIDAD', 'VENTA_CLIENTE_VE'];
+    
+    if (motivosConPDF.includes(motivoArchivo)) {
+        const inputPDF = document.getElementById('archivoVentaPDFArchivo');
+        if (!inputPDF || !inputPDF.files || inputPDF.files.length === 0) {
+            Swal.fire({ icon: 'warning', title: 'Documento obligatorio', text: 'Debes adjuntar el documento de venta en PDF para este motivo.', confirmButtonColor: '#0d6efd' });
+            return;
+        }
+        const file = inputPDF.files[0];
+        if (file.type !== 'application/pdf') {
+            Swal.fire({ icon: 'error', title: 'Formato inválido', text: 'El archivo debe ser un PDF válido.' });
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            Swal.fire({ icon: 'error', title: 'Archivo muy pesado', text: 'El PDF no debe superar los 10MB.' });
+            return;
+        }
+        formData.append('archivo_venta_pdf', file);
     }
+    
+    // ✅ YA NO SE VALIDA id_familia AQUÍ
     
     const btn = document.getElementById('btnProcesarArchivo');
     btn.disabled = true;
@@ -856,9 +787,12 @@ async function procesarArchivoCarga() {
     try {
         const response = await fetch('../api/procesar_archivo_carga.php', { method: 'POST', body: formData });
         const texto = await response.text();
-        
         let data;
-        try { data = JSON.parse(texto); } catch (e) { throw new Error("El servidor devolvió una respuesta inválida."); }
+        try { 
+            data = JSON.parse(texto); 
+        } catch (e) { 
+            throw new Error("El servidor devolvió una respuesta inválida: " + texto); 
+        }
         
         if (data.success) {
             mostrarResumenProcesamiento(data);
@@ -875,7 +809,7 @@ async function procesarArchivoCarga() {
 }
 
 // ==========================================
-// Mostrar Resumen de Procesamiento (MODAL)
+// Mostrar Resumen de Procesamiento
 // ==========================================
 function mostrarResumenProcesamiento(data) {
     const modalElement = document.getElementById('modalResumenProcesamiento');

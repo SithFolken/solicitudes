@@ -6,7 +6,6 @@
 
 $MOTIVOS_CARGA = [
     '' => 'Seleccione un motivo...',
-    'APUESTA' => 'Apuesta',
     'APUESTA_PP' => 'Apuesta para PP',
     'VENTA_CLIENTE_CES' => 'Venta Cliente CES',
     'VENTA_CLIENTE_BLACK' => 'Venta Cliente Black',

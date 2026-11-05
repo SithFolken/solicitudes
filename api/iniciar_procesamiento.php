@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'analista') {
 $data = json_decode(file_get_contents('php://input'), true);
 $id_solicitud = isset($data['id_solicitud']) ? (int)$data['id_solicitud'] : 0;
 $usuario_actual = $_SESSION['user_id'] ?? '';
+$nombre_analista_sesion = $_SESSION['nombre'] ?? ''; // ✅ Necesario para la nueva tabla
 
 if ($id_solicitud <= 0) {
     echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
@@ -21,41 +22,62 @@ if ($id_solicitud <= 0) {
 try {
     require_once '../config/database.php';
 
-    // ✅ CONSULTA MAESTRA: Obtener familias del analista
-    $sql_familias = "SELECT DISTINCT d.Familia as id_familia
-                     FROM FulFillment.distribucion_analista_familia d
-                     INNER JOIN rct.usuarios_solicitudes_oc u 
-                         ON d.Analista_reposicion_tienda = u.nombre
-                     WHERE u.usuario = :usuario_analista";
-    
-    $stmt_familias = $pdo->prepare($sql_familias);
-    $stmt_familias->execute(['usuario_analista' => $usuario_actual]);
-    $familias_asignadas = $stmt_familias->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (empty($familias_asignadas)) {
-        echo json_encode(['success' => false, 'message' => 'No tienes familias asignadas para procesar.']);
+    // 1. Obtener datos de la solicitud
+    $sql_sol = "SELECT id_familia, id_sub_familia, usuario_proceso 
+                FROM Analisis_Procesos.solicitudes 
+                WHERE id_solicitud = :id_solicitud";
+    $stmt_sol = $pdo->prepare($sql_sol);
+    $stmt_sol->execute(['id_solicitud' => $id_solicitud]);
+    $solicitud = $stmt_sol->fetch(PDO::FETCH_ASSOC);
+
+    if (!$solicitud) {
+        echo json_encode(['success' => false, 'message' => 'Solicitud no encontrada.']);
         exit;
     }
+
+    $puede_acceder = false;
+
+    // ==========================================
+    // ✅ VALIDACIÓN DE 3 NIVELES (CORREGIDA)
+    // ==========================================
     
-    $placeholders = [];
-    $params = ['id_solicitud' => $id_solicitud];
-    foreach ($familias_asignadas as $index => $familia) {
-        $param_name = 'fam_' . $index;
-        $placeholders[] = ':' . $param_name;
-        $params[$param_name] = $familia;
+    // NIVEL 1: Verificar por SUBFAMILIA (Sistema Nuevo)
+    if (!empty($solicitud['id_sub_familia'])) {
+        $sql_sub = "SELECT 1 FROM input_clientes.planificacion_asignacion_equipos 
+                    WHERE analista_repo_tienda = :nombre AND id_sub_familia = :sub_fam";
+        $stmt_sub = $pdo->prepare($sql_sub);
+        $stmt_sub->execute([
+            'nombre' => $nombre_analista_sesion,
+            'sub_fam' => $solicitud['id_sub_familia']
+        ]);
+        if ($stmt_sub->fetch()) {
+            $puede_acceder = true;
+        }
     }
-    
-    // ✅ Verificar que la solicitud exista Y pertenezca a sus familias
-    $sql_check = "SELECT COUNT(*) as existe 
-                  FROM Analisis_Procesos.solicitudes 
-                  WHERE id_solicitud = :id_solicitud 
-                  AND id_familia IN (" . implode(',', $placeholders) . ")";
-    
-    $stmt_check = $pdo->prepare($sql_check);
-    $stmt_check->execute($params);
-    $resultado = $stmt_check->fetch();
-    
-    if ($resultado['existe'] == 0) {
+
+    // NIVEL 2: Fallback por FAMILIA (Sistema Antiguo)
+    if (!$puede_acceder && !empty($solicitud['id_familia'])) {
+        // ✅ CORREGIDO: Usar LIKE para manejar múltiples analistas separados por '|'
+        $sql_fam = "SELECT 1 FROM FulFillment.distribucion_analista_familia d
+                    INNER JOIN rct.usuarios_solicitudes_oc u 
+                        ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%')
+                    WHERE u.usuario = :usuario AND d.Familia = :fam";
+        $stmt_fam = $pdo->prepare($sql_fam);
+        $stmt_fam->execute([
+            'usuario' => $usuario_actual,
+            'fam' => $solicitud['id_familia']
+        ]);
+        if ($stmt_fam->fetch()) {
+            $puede_acceder = true;
+        }
+    }
+
+    // NIVEL 3: Emergencia - Si es el usuario asignado directamente
+    if (!$puede_acceder && $solicitud['usuario_proceso'] === $nombre_analista_sesion) {
+        $puede_acceder = true;
+    }
+
+    if (!$puede_acceder) {
         echo json_encode(['success' => false, 'message' => 'No tienes permiso para procesar esta solicitud.']);
         exit;
     }
@@ -68,6 +90,6 @@ try {
 
 } catch (PDOException $e) {
     error_log("Error iniciar procesamiento: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'Error de base de datos']);
+    echo json_encode(['success' => false, 'message' => 'Error de base de datos: ' . $e->getMessage()]);
 }
 ?>

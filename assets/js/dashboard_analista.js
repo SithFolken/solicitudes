@@ -1,32 +1,48 @@
 // assets/js/dashboard_analista.js
-
 document.addEventListener('DOMContentLoaded', () => {
     cargarDashboardAnalista();
 });
 
 async function cargarDashboardAnalista() {
     try {
+        // ✅ NUEVO: Obtener información de subfamilias asignadas
+        try {
+            const responseInfo = await fetch('../api/obtener_solicitudes.php?pagina=1&por_pagina=1');
+            const dataInfo = await responseInfo.json();
+            
+            const infoDiv = document.getElementById('infoSubfamilias');
+            if (infoDiv) {
+                if (dataInfo.subfamilias_asignadas && dataInfo.subfamilias_asignadas.length > 0) {
+                    infoDiv.innerHTML = `<small class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Viendo solicitudes de tus subfamilias asignadas: <strong>${dataInfo.subfamilias_asignadas.join(', ')}</strong></small>`;
+                } else {
+                    infoDiv.innerHTML = `<small class="text-muted"><i class="bi bi-info-circle me-1"></i>Mostrando solicitudes por familia/usuario asignado.</small>`;
+                }
+            }
+        } catch (error) {
+            console.error('Error cargando info de subfamilias:', error);
+        }
+
+        // Cargar KPIs
         const response = await fetch('../api/obtener_kpis_analista.php');
         const data = await response.json();
-
+        
         ocultarLoading();
-
+        
         if (!data.success) {
             console.error('Error cargando dashboard:', data.message);
             mostrarError('No se pudieron cargar los datos del dashboard: ' + (data.message || 'Error desconocido'));
             return;
         }
-
+        
         // Actualizar KPIs
         document.getElementById('kpiPendientes').textContent = data.kpis.pendientes || 0;
         document.getElementById('kpiProcesadasHoy').textContent = data.kpis.procesadasHoy || 0;
         document.getElementById('kpiTasaAprobacion').textContent = (data.kpis.tasaAprobacion || 0) + '%';
         document.getElementById('kpiTotalSKUs').textContent = data.kpis.totalSKUs || 0;
-
         document.getElementById('kpiSlaTiempo').textContent = data.kpis.sla_a_tiempo || 0;
         document.getElementById('kpiSlaUrgente').textContent = data.kpis.sla_por_cumplirse || 0;
         document.getElementById('kpiSlaVencidas').textContent = data.kpis.sla_vencidas || 0;
-
+        
         // Gráficos con datos validados
         if (data.graficos.porEstado?.length > 0) crearGraficoEstado(data.graficos.porEstado);
         if (data.graficos.porDias?.length > 0) crearGraficoDias(data.graficos.porDias);
@@ -37,7 +53,7 @@ async function cargarDashboardAnalista() {
         if (data.graficos.topSKUs?.length > 0) {
             crearGraficoTopSKUs(data.graficos.topSKUs);
         }
-
+        
     } catch (error) {
         console.error('Error cargando dashboard:', error);
         ocultarLoading();
@@ -99,7 +115,7 @@ function crearGraficoEstado(datos) {
         y: parseInt(item.total),
         color: obtenerColorPorEstado(item.estado_general)
     }));
-
+    
     Highcharts.chart('chartEstado', {
         chart: { type: 'pie', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
@@ -157,7 +173,7 @@ function crearGraficoDias(datos) {
         return fecha.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
     });
     const valores = datos.map(item => parseInt(item.total));
-
+    
     Highcharts.chart('chartDias', {
         chart: { type: 'column', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
@@ -201,7 +217,7 @@ function crearGraficoDias(datos) {
         series: [{
             name: 'Solicitudes Procesadas',
             data: valores,
-            color: gradientesCorp.primario // ✅ Usa el gradiente azul corporativo
+            color: gradientesCorp.primario
         }]
     });
 }
@@ -215,7 +231,7 @@ function crearGraficoMD(datos) {
         y: parseInt(item.total),
         color: obtenerColorPorMD(item.md)
     }));
-
+    
     Highcharts.chart('chartMD', {
         chart: { type: 'pie', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
@@ -267,7 +283,6 @@ function crearGraficoTiendas(datos) {
     while (datos.length < 5) {
         datos.push({ id_tienda: 0, total: 0 });
     }
-
     const categorias = datos.map(item => {
         if (item.id_tienda && item.id_tienda > 0) {
             return `Tienda ${item.id_tienda}`;
@@ -276,7 +291,7 @@ function crearGraficoTiendas(datos) {
         }
     });
     const valores = datos.map(item => parseInt(item.total));
-
+    
     Highcharts.chart('chartTiendas', {
         chart: { type: 'bar', backgroundColor: 'transparent', spacing: [20, 20, 20, 20] },
         title: { text: null },
@@ -320,7 +335,7 @@ function crearGraficoTiendas(datos) {
         series: [{
             name: 'Solicitudes',
             data: valores,
-            color: gradientesCorp.info // ✅ Usa el gradiente azul corporativo
+            color: gradientesCorp.info
         }]
     });
 }
@@ -335,12 +350,11 @@ function crearGraficoTopSKUs(datos) {
         console.error("❌ No hay datos");
         return;
     }
-
+    
     const dataPrincipal = datos.map((item, index) => {
         const desc = item.descripcion || 'Sin descripción';
         const sku = item.sku;
         const label = desc.length > 50 ? desc.substring(0, 50) + '...' : desc;
-        
         return {
             name: label,
             y: parseInt(item.total),
@@ -349,14 +363,13 @@ function crearGraficoTopSKUs(datos) {
             custom: { sku: sku, descripcion: desc }
         };
     });
-
+    
     const seriesDrilldown = datos.map(item => {
         const tiendasData = (item.tiendas || []).map(t => ({
             name: `Tienda ${t.id_tienda}`,
             y: parseInt(t.total),
-            color: coloresCorp.azul // ✅ Color corporativo para drilldown
+            color: coloresCorp.azul
         }));
-        
         return {
             id: item.sku,
             name: `Tiendas - ${item.sku}`,
@@ -364,7 +377,7 @@ function crearGraficoTopSKUs(datos) {
             type: 'bar'
         };
     });
-
+    
     Highcharts.chart('chartTopSKUs', {
         chart: {
             type: 'bar',
@@ -432,7 +445,7 @@ function crearGraficoTopSKUs(datos) {
                 relativeTo: 'spacingBox',
                 position: { y: 10, x: 0 },
                 theme: {
-                    fill: coloresCorp.azul, // ✅ Botón de volver azul corporativo
+                    fill: coloresCorp.azul,
                     stroke: 'none',
                     r: 20,
                     padding: 10,
@@ -447,16 +460,15 @@ function crearGraficoTopSKUs(datos) {
 }
 
 function obtenerColorPorIndex(index) {
-    // Paleta corporativa variada para las barras del top 10
     const colores = [
-        coloresCorp.azul, 
-        coloresCorp.amarillo, 
-        coloresCorp.rojo, 
-        coloresCorp.verde, 
+        coloresCorp.azul,
+        coloresCorp.amarillo,
+        coloresCorp.rojo,
+        coloresCorp.verde,
         coloresCorp.azulClaro,
-        '#20c997', // Teal
-        '#fd7e14', // Naranja
-        '#6f42c1'  // Un toque de púrpura para variedad
+        '#20c997',
+        '#fd7e14',
+        '#6f42c1'
     ];
     return colores[index % colores.length];
 }

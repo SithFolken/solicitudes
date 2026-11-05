@@ -5,11 +5,17 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Si ya hay sesión, redirigir según el rol
 if (isset($_SESSION['user_id']) && isset($_SESSION['rol'])) {
-    if ($_SESSION['rol'] === 'analista') {
-        header("Location: views/dashboard.php");
+    if ($_SESSION['rol'] === 'supervisor') {
+        header("Location: views/supervisor.php");
+        exit;
+    } elseif ($_SESSION['rol'] === 'analista') {
+        header("Location: views/dashboard.php"); // Ajusta si tu archivo se llama gestionar_cargas.php
         exit;
     } elseif ($_SESSION['rol'] === 'tienda') {
-        header("Location: views/dashboard_tienda.php");
+        header("Location: views/dashboard_tienda.php"); // Ajusta si tu archivo se llama solicitar_carga.php
+        exit;
+    } elseif ($_SESSION['rol'] === 'ejecutor') {
+        header("Location: views/dashboard.php"); // O la vista que corresponda al ejecutor
         exit;
     }
 }

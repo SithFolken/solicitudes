@@ -31,32 +31,47 @@ async function cargarSKUs() {
         const data = await response.json();
         
         if (!data.success) {
-            tbody.innerHTML = `<tr><td colspan="24" class="text-center py-4 text-danger">${data.message || 'Error al cargar'}</td></tr>`;
+            // ✅ CORREGIDO: colspan="26" para que coincida con el encabezado
+            tbody.innerHTML = `<tr><td colspan="26" class="text-center py-4 text-danger">${data.message || 'Error al cargar'}</td></tr>`;
             return;
+        }
+        
+        // ✅ ACTUALIZAR ENCABEZADO CON MOTIVO, OBSERVACIONES Y PDF
+        if (data.solicitud) {
+            const infoMotivo = document.getElementById('infoMotivo');
+            if (infoMotivo && data.solicitud.motivo_carga) {
+                infoMotivo.textContent = data.solicitud.motivo_carga;
+            }
+
+            const obsText = document.getElementById('infoObservaciones');
+            if (obsText && data.solicitud.observaciones_generales) {
+                obsText.textContent = data.solicitud.observaciones_generales;
+                obsText.parentElement.style.display = 'flex'; // Mostrar contenedor si hay texto
+            }
+
+            const pdfContainer = document.getElementById('infoPdfContainer'); // Asegúrate que este ID exista en tu PHP si lo usas
+            // Nota: En tu PHP actual usas un bloque inline, así que esto es solo por si acaso.
         }
         
         tbody.innerHTML = '';
         
         if (!data.skus || data.skus.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="24" class="text-center py-4 text-muted">No hay SKUs en esta solicitud</td></tr>';
+            // ✅ CORREGIDO: colspan="26"
+            tbody.innerHTML = '<tr><td colspan="26" class="text-center py-4 text-muted">No hay SKUs en esta solicitud</td></tr>';
             return;
         }
         
         data.skus.forEach(item => {
             const tr = document.createElement('tr');
             
-            // ✅ 1. OBTENER CANTIDAD FINAL (Si existe, sino usar la solicitada)
             const unidPallet = parseFloat(item.unid_pallet) || 1;
             const cantSolicitada = parseFloat(item.carga_solicitada) || 0;
-            const cantFinal = (parseFloat(item.carga_final) > 0) ? parseFloat(item.carga_final) : cantSolicitada; // ✅ CLAVE
-
-            // ✅ 2. CALCULAR PALLETS USANDO LA CANTIDAD FINAL
+            const cantFinal = (parseFloat(item.carga_final) > 0) ? parseFloat(item.carga_final) : cantSolicitada;
             const palletsExactos = cantFinal > 0 ? (cantFinal / unidPallet) : 0;
             
             tr.innerHTML = `
                 <td><strong>${item.sku}</strong></td>
                 
-                <!-- TIENDA -->
                 <td class="tienda-cell">
                     <div class="text-center">
                         <div class="tienda-nombre" style="font-size: 11px; font-weight: 700; color: #0056b3;">
@@ -90,23 +105,19 @@ async function cargarSKUs() {
                 <td class="bg-sds"><strong>${item.sds_actual || '0'}</strong></td>
                 <td class="bg-sds"><strong>${item.sds_carga || '0'}</strong></td>
                 
-                <!-- ✅ 3. MOSTRAR CANTIDAD FINAL EN TEXTO -->
                 <td><strong>${cantFinal || '0'}</strong></td>
                 
-                <!-- ✅ 4. INPUT CON CANTIDAD FINAL COMO VALOR INICIAL -->
                 <td>
                     <input type="number" class="form-control form-control-sm input-cantidad" 
                            data-id="${item.id_detalle}" value="${cantFinal || '0'}" min="0" step="1">
                 </td>
                 
-                <!-- PALLETS -->
                 <td>
                     <div class="text-center">
                         <strong class="text-primary" style="font-size: 13px;">
                             ${palletsExactos.toFixed(3)}
                         </strong>
                         <br>
-                        <!-- ✅ 5. TEXTO DE REFERENCIA CON CANTIDAD FINAL -->
                         <small class="text-muted" style="font-size: 9px;">
                             (${cantFinal}/${unidPallet})
                         </small>
@@ -132,14 +143,28 @@ async function cargarSKUs() {
                     </select>
                 </td>
                 
-                <td><input type="checkbox" class="form-check-input checkbox-no-cargar" data-id="${item.id_detalle}"></td>
-                <td><input type="text" class="form-control form-control-sm input-motivo" data-id="${item.id_detalle}" placeholder="Motivo..." value="${item.campo_cambios || ''}"></td>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input checkbox-no-cargar" data-id="${item.id_detalle}">
+                </td>
+                
+                <!-- ✅ COLUMNA OBS. SKU: Muestra el mensaje del Árbol de Decisión y permite editarlo -->
+                <td style="min-width: 200px; max-width: 300px;">
+                    <textarea class="form-control form-control-sm input-motivo" 
+                            data-id="${item.id_detalle}" 
+                            placeholder="Mensaje del árbol de decisión..." 
+                            rows="2"
+                            style="resize: vertical; font-size: 11px;">${item.campo_cambios || ''}</textarea>
+                    <small class="text-muted" style="font-size: 9px; display: block; margin-top: 2px;">
+                        ${item.campo_cambios ? '✏️ Mensaje del sistema (editable)' : 'Sin observaciones'}
+                    </small>
+                </td>
             `;
             tbody.appendChild(tr);
         });
     } catch (error) {
         console.error('Error cargando SKUs:', error);
-        tbody.innerHTML = '<tr><td colspan="24" class="text-center py-4 text-danger">Error de conexión</td></tr>';
+        // ✅ CORREGIDO: colspan="26"
+        tbody.innerHTML = '<tr><td colspan="26" class="text-center py-4 text-danger">Error de conexión al cargar los datos</td></tr>';
     }
 }
 
@@ -272,7 +297,7 @@ async function guardarCambios(procesar = true) {
             cantidad_final: cantidad, 
             md: mdFinal, 
             no_cargar: noCargar ? 1 : 0, 
-            motivo: motivo 
+            motivo: motivo // ✅ Esto enviará el mensaje del árbol (o el editado por el analista)
         });
     });
     

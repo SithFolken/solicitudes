@@ -26,10 +26,11 @@ try {
 
     // 1. Si es analista, aplicar filtro de familias
     if ($rol_actual === 'analista') {
+        // ✅ CORREGIDO: Usar LIKE para manejar múltiples analistas separados por '|'
         $sql_familias = "SELECT DISTINCT d.Familia as id_familia
                          FROM FulFillment.distribucion_analista_familia d
                          INNER JOIN rct.usuarios_solicitudes_oc u 
-                             ON d.Analista_reposicion_tienda = u.nombre
+                             ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%')
                          WHERE u.usuario = :usuario_analista";
         
         $stmt_familias = $pdo->prepare($sql_familias);
@@ -52,14 +53,19 @@ try {
 
     $params['id_solicitud'] = $id_solicitud;
 
-    // 2. Consulta COMPLETA de SKUs CORREGIDA
+    // 2. Consulta COMPLETA de SKUs con Inventario Real de Bodegas
     $sql = "SELECT 
                 sc.id_detalle, sc.sku, sc.descripcion_producto, sc.carga_solicitada, sc.carga_final, 
                 sc.md, sc.campo_cambios, sc.estado_item,
                 sd.PV6 as pv6,
                 ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
                 sd.capacity, sd.lead_time_total as lt,
-                sd.disp as disp_tda, sd.pend as pend_tda, sd.disp_bod as disp_bod, sd.pend_bod as pend_bod,
+                sd.disp as disp_tda, sd.pend as pend_tda, 
+                
+                -- ✅ NUEVO: Stock real de bodegas con asigna = 1
+                COALESCE(bod_saldo.disp_bod_calc, 0) as disp_bod, 
+                COALESCE(bod_saldo.pend_bod_calc, 0) as pend_bod,
+                
                 sd.vta_sem_1 as v1, sd.vta_sem_2 as v2, sd.vta_sem_3 as v3, sd.vta_sem_4 as v4, sd.vta_sem_5 as v5, sd.vta_sem_6 as v6,
                 sd.unid_pallet,
                 ROUND((COALESCE(sd.disp, 0) + COALESCE(sd.pend, 0)) / NULLIF(sd.PV6, 0), 1) as sds_actual,
@@ -70,8 +76,8 @@ try {
             FROM Analisis_Procesos.solicitudes_carga sc
             INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
             LEFT JOIN (
-                -- ✅ CORRECCIÓN: Subconsulta para traer SOLO el registro más reciente por SKU y Tienda
-                SELECT sku, id_tienda, nombre_tienda, PV6, capacity, lead_time_total, disp, pend, disp_bod, pend_bod, 
+                -- Subconsulta para traer SOLO el registro más reciente por SKU y Tienda del sugerido
+                SELECT sku, id_tienda, nombre_tienda, PV6, capacity, lead_time_total, disp, pend, 
                        vta_sem_1, vta_sem_2, vta_sem_3, vta_sem_4, vta_sem_5, vta_sem_6, unid_pallet, MD
                 FROM rct.sugerido_diario sd1
                 WHERE fecha = (
@@ -80,6 +86,16 @@ try {
                     WHERE sd2.sku = sd1.sku AND sd2.id_tienda = sd1.id_tienda
                 )
             ) sd ON sc.sku = sd.sku AND s.id_tienda = sd.id_tienda
+            LEFT JOIN (
+                SELECT 
+                    inv.sku,
+                    SUM(inv.saldo_disponible) as disp_bod_calc,
+                    SUM(inv.saldo_pendiente) as pend_bod_calc
+                FROM sodimac_grt.inventario_diario inv
+                INNER JOIN sodimac_grt.bodegas b ON inv.id_sucursal = b.id_bodega
+                WHERE b.asigna = 1
+                GROUP BY inv.sku
+            ) as bod_saldo ON sd.sku = bod_saldo.sku
             WHERE sc.id_solicitud = :id_solicitud {$where_familia}
             GROUP BY sc.id_detalle
             ORDER BY sc.id_detalle";
@@ -93,8 +109,8 @@ try {
         exit;
     }
 
-    // 3. Consulta del padre
-    $sql_padre = "SELECT s.estado_general, s.fecha_solicitud, s.observaciones_generales
+    // 3. Consulta del padre (✅ AGREGADO: motivo_carga y archivo_venta_pdf)
+    $sql_padre = "SELECT s.estado_general, s.fecha_solicitud, s.observaciones_generales, s.motivo_carga, s.archivo_venta_pdf
                   FROM Analisis_Procesos.solicitudes s
                   WHERE s.id_solicitud = :id_solicitud {$where_familia}";
     $stmt_padre = $pdo->prepare($sql_padre);
@@ -106,7 +122,9 @@ try {
         'skus' => $skus,
         'estado_general' => $solicitud['estado_general'] ?? 'PENDIENTE',
         'fecha_solicitud' => $solicitud['fecha_solicitud'] ?? null,
-        'observaciones_generales' => $solicitud['observaciones_generales'] ?? null
+        'observaciones_generales' => $solicitud['observaciones_generales'] ?? null,
+        'motivo_carga' => $solicitud['motivo_carga'] ?? null,          
+        'archivo_venta_pdf' => $solicitud['archivo_venta_pdf'] ?? null 
     ]);
     
 } catch (PDOException $e) {

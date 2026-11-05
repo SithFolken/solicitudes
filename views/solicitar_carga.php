@@ -78,7 +78,7 @@ require_once '../api/config_motivos.php';
             <main class="col-md-10 ms-sm-auto">
                 <div class="page-header">
                     <h1 class="h2 mb-1"><i class="bi bi-cart-plus me-2"></i><?= $titulo_pagina ?></h1>
-                    <p class="text-muted mb-0">Complete los datos para generar una nueva solicitud de carga</p>
+                    <p class="text-muted mb-0">Complete los datos. El sistema detectará automáticamente la familia y asignará al analista correspondiente.</p>
                 </div>
 
                 <?php if ($id_edicion > 0): ?>
@@ -86,11 +86,7 @@ require_once '../api/config_motivos.php';
                         <div class="card-body p-4">
                             <form id="formSolicitudManual">
                                 <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label for="idFamilia" class="form-label">Familia del Producto <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="idFamilia" name="id_familia" required><option value="">Cargando familias...</option></select>
-                                    </div>
-                                    <div class="col-md-6 position-relative">
+                                    <div class="col-md-12 position-relative">
                                         <label for="sku" class="form-label">SKU o Descripción <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control" id="sku" name="sku" required placeholder="Ej: 123456" autocomplete="off">
                                         <div id="sugerenciasSKU" class="list-group position-absolute w-100" style="display: none; z-index: 1050;"></div>
@@ -107,6 +103,17 @@ require_once '../api/config_motivos.php';
                                         <label for="motivo" class="form-label">Motivo de la Carga <span class="text-danger">*</span></label>
                                         <?= generarSelectMotivos('motivo', '', true) ?>
                                     </div>
+                                    
+                                    <div class="col-md-12" id="containerUploadPDF" style="display: none;">
+                                        <label for="archivoVentaPDF" class="form-label">
+                                            <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+                                            Documento de Venta (PDF) <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="file" class="form-control" id="archivoVentaPDF" name="archivo_venta_pdf" accept=".pdf">
+                                        <small class="text-muted">Obligatorio para motivos: Venta Cliente Black, Contactabilidad y VE</small>
+                                        <div id="errorPDF" class="text-danger mt-1" style="display: none;"></div>
+                                    </div>
+                                    
                                     <div class="col-md-12">
                                         <label for="observaciones" class="form-label">Observaciones Generales (Opcional)</label>
                                         <textarea class="form-control" id="observaciones" name="observaciones" rows="3"></textarea>
@@ -136,11 +143,7 @@ require_once '../api/config_motivos.php';
                                 <div class="card-body p-4">
                                     <form id="formSolicitudManual">
                                         <div class="row g-3">
-                                            <div class="col-md-6">
-                                                <label for="idFamilia" class="form-label">Familia del Producto <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="idFamilia" name="id_familia" required><option value="">Cargando familias...</option></select>
-                                            </div>
-                                            <div class="col-md-6 position-relative">
+                                            <div class="col-md-12 position-relative">
                                                 <label for="sku" class="form-label">SKU o Descripción <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="sku" name="sku" required placeholder="Ej: 123456" autocomplete="off">
                                                 <div id="sugerenciasSKU" class="list-group position-absolute w-100" style="display: none; z-index: 1050;"></div>
@@ -157,6 +160,17 @@ require_once '../api/config_motivos.php';
                                                 <label for="motivo" class="form-label">Motivo de la Carga <span class="text-danger">*</span></label>
                                                 <?= generarSelectMotivos('motivo', '', true) ?>
                                             </div>
+                                            
+                                            <div class="col-md-12" id="containerUploadPDF" style="display: none;">
+                                                <label for="archivoVentaPDF" class="form-label">
+                                                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+                                                    Documento de Venta (PDF) <span class="text-danger">*</span>
+                                                </label>
+                                                <input type="file" class="form-control" id="archivoVentaPDF" name="archivo_venta_pdf" accept=".pdf">
+                                                <small class="text-muted">Obligatorio para motivos: Venta Cliente Black, Contactabilidad y VE</small>
+                                                <div id="errorPDF" class="text-danger mt-1" style="display: none;"></div>
+                                            </div>
+                                            
                                             <div class="col-md-12">
                                                 <label for="observaciones" class="form-label">Observaciones Generales (Opcional)</label>
                                                 <textarea class="form-control" id="observaciones" name="observaciones" rows="3"></textarea>
@@ -172,7 +186,6 @@ require_once '../api/config_motivos.php';
                             </div>
                         </div>
 
-                        <!-- ✅ SECCIÓN MODIFICADA: Carga por Archivo con Botón de Descarga -->
                         <div class="tab-pane fade" id="archivo" role="tabpanel">
                             <div class="card">
                                 <div class="card-body p-4">
@@ -190,18 +203,24 @@ require_once '../api/config_motivos.php';
                                     </div>
                                     <form id="formCargaArchivo" enctype="multipart/form-data">
                                         <div class="row g-3">
-                                            <div class="col-md-6">
-                                                <label for="idFamiliaArchivo" class="form-label">Familia del Producto <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="idFamiliaArchivo" name="id_familia" required><option value="">Cargando familias...</option></select>
-                                            </div>
-                                            <div class="col-md-6">
+                                            <div class="col-md-12">
                                                 <label for="archivo" class="form-label">Seleccionar Archivo <span class="text-danger">*</span></label>
                                                 <input type="file" class="form-control" id="archivo" name="archivo" accept=".csv" required>
                                             </div>
                                             <div class="col-md-12">
                                                 <label for="motivoArchivo" class="form-label">Motivo de la Carga <span class="text-danger">*</span></label>
-                                                <?= generarSelectMotivos('motivo', '', true) ?>
+                                                <?= generarSelectMotivos('motivoArchivo', '', true) ?>
                                             </div>
+                                            
+                                            <div class="col-md-12" id="containerUploadPDFArchivo" style="display: none;">
+                                                <label for="archivoVentaPDFArchivo" class="form-label">
+                                                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+                                                    Documento de Venta (PDF) <span class="text-danger">*</span>
+                                                </label>
+                                                <input type="file" class="form-control" id="archivoVentaPDFArchivo" name="archivo_venta_pdf" accept=".pdf">
+                                                <small class="text-muted">Obligatorio para motivos: Venta Cliente Black, Contactabilidad y VE</small>
+                                            </div>
+                                            
                                             <div class="col-md-12">
                                                 <label for="observacionesArchivo" class="form-label">Observaciones Generales (Opcional)</label>
                                                 <textarea class="form-control" id="observacionesArchivo" name="observaciones" rows="3"></textarea>
@@ -222,7 +241,7 @@ require_once '../api/config_motivos.php';
         </div>
     </div>
 
-    <!-- Modales (sin cambios, se mantienen igual) -->
+    <!-- Modales -->
     <div class="modal fade" id="modalResumenProcesamiento" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -267,7 +286,7 @@ require_once '../api/config_motivos.php';
                 <div class="modal-body">
                     <div class="alert alert-info border-0"><i class="bi bi-info-circle me-2"></i><strong>Revisa la información antes de enviar:</strong></div>
                     <div class="row mb-3">
-                        <div class="col-md-6"><small class="text-muted text-uppercase fw-bold">📦 Familia:</small><p id="confirm_familia" class="fs-6 mb-0"></p></div>
+                        <div class="col-md-6"><small class="text-muted text-uppercase fw-bold">📦 Asignación:</small><p id="confirm_familia" class="fs-6 mb-0 text-success">Automática por Sistema</p></div>
                         <div class="col-md-6"><small class="text-muted text-uppercase fw-bold">🏪 Tienda:</small><p id="confirm_tienda" class="fs-6 mb-0"></p></div>
                     </div>
                     <hr>
@@ -320,5 +339,5 @@ require_once '../api/config_motivos.php';
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="../assets/js/global.js"></script>
     <script src="../assets/js/solicitar_carga.js?v=<?php echo time(); ?>"></script>
-</body>
+</body> 
 </html>
