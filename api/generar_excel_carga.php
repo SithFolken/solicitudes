@@ -18,7 +18,7 @@ require_once '../config/database.php';
 try {
     $usuario_actual = $_SESSION['user_id'] ?? '';
     $rol_actual = $_SESSION['rol'] ?? '';
-    $nombre_analista = $_SESSION['nombre'] ?? ''; // ✅ Necesario para el LIKE
+    $nombre_analista = $_SESSION['nombre'] ?? ''; // ✅ Necesario para el LIKE y reemplazos
 
     $ciclo_nombre = isset($_GET['ciclo']) ? $_GET['ciclo'] : date('Y-m-d');
     $es_rescate = (isset($_GET['tipo']) && $_GET['tipo'] === 'rescate');
@@ -36,15 +36,26 @@ try {
     $params_familia = [];
     
     if ($rol_actual === 'analista') {
-        // ✅ CORREGIDO: Usar LIKE para manejar múltiples analistas separados por '|'
+        // ✅ Cargar helper de reemplazos
+        require_once __DIR__ . '/helpers_reemplazos.php';
+        $analistas_efectivos = obtenerAnalistasEfectivos($pdo, $usuario_actual);
+        
+        $placeholders_usr = [];
+        foreach ($analistas_efectivos as $index => $usr) {
+            $param_name = 'usr_exp_' . $index;
+            $placeholders_usr[] = ':' . $param_name;
+            $params_familia[$param_name] = $usr;
+        }
+
+        // Buscar las familias asociadas a estos analistas efectivos (propio + reemplazos)
         $sql_familias = "SELECT DISTINCT d.Familia as id_familia
                          FROM FulFillment.distribucion_analista_familia d
                          INNER JOIN rct.usuarios_solicitudes_oc u 
                              ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%')
-                         WHERE u.usuario = :usuario_analista";
+                         WHERE u.usuario IN (" . implode(',', $placeholders_usr) . ")";
                          
         $stmt_familias = $pdo->prepare($sql_familias);
-        $stmt_familias->execute(['usuario_analista' => $usuario_actual]);
+        $stmt_familias->execute($params_familia);
         $familias_asignadas = $stmt_familias->fetchAll(PDO::FETCH_COLUMN);
         
         if (empty($familias_asignadas)) {
@@ -52,19 +63,23 @@ try {
             exit;
         }
         
-        $placeholders = [];
+        $placeholders_fam = [];
         foreach ($familias_asignadas as $index => $familia) {
             $param_name = 'fam_' . $index;
-            $placeholders[] = ':' . $param_name;
+            $placeholders_fam[] = ':' . $param_name;
             $params_familia[$param_name] = $familia;
         }
-        $where_familia = " AND s.id_familia IN (" . implode(',', $placeholders) . ")";
+        
+        // Filtrar por familia O por usuario_proceso directo (para cubrir todos los casos)
+        $where_familia = " AND (s.id_familia IN (" . implode(',', $placeholders_fam) . ") OR s.usuario_proceso IN (" . implode(',', $placeholders_usr) . "))";
     }
 
     if ($es_rescate) {
-        $where_fecha = " AND s.fecha_procesamiento >= :inicio AND s.fecha_procesamiento <= :fin ";
-        $where_exportado = " AND (s.fecha_generacion_excel IS NULL OR s.tipo_exportacion = 'ATRASADO') ";
+    // ✅ RESCATE: Solo solicitudes NUNCA exportadas (ni NORMAL ni ATRASADO)
+    $where_fecha = " AND s.fecha_procesamiento >= :inicio AND s.fecha_procesamiento <= :fin ";
+    $where_exportado = " AND s.fecha_generacion_excel IS NULL ";
     } else {
+        // ✅ CICLO NORMAL: Solo solicitudes no exportadas
         $where_fecha = " AND s.fecha_solicitud >= :inicio AND s.fecha_solicitud < :fin ";
         $where_exportado = " AND s.fecha_generacion_excel IS NULL ";
     }

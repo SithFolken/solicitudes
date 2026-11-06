@@ -1,5 +1,5 @@
 <?php
-// api/procesar_archivo_carga.php - VERSIÓN OPTIMIZADA: AGRUPACIÓN POR ANALISTA + TIPO (CON MAPEO A USERNAME)
+// api/procesar_archivo_carga.php - VERSIÓN OPTIMIZADA CON SOPORTE DE REEMPLAZOS POR VACACIONES
 if (ob_get_level()) ob_end_clean();
 session_start();
 
@@ -28,7 +28,6 @@ if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK)
     exit;
 }
 
-// ✅ Ya no exigimos id_familia, lo detectaremos automáticamente
 $observaciones = trim($_POST['observaciones'] ?? '');
 $motivo = trim($_POST['motivo'] ?? '');
 $id_tienda = isset($_SESSION['id_tienda']) ? (int)$_SESSION['id_tienda'] : 0;
@@ -39,7 +38,6 @@ if ($id_tienda <= 0 || empty($usuario_tienda)) {
     exit;
 }
 
-// ✅ VALIDACIÓN DE MOTIVO
 if (empty($motivo) || !validarMotivo($motivo)) {
     echo json_encode(['success' => false, 'message' => 'Debe seleccionar un motivo válido antes de cargar el archivo.']);
     exit;
@@ -47,7 +45,7 @@ if (empty($motivo) || !validarMotivo($motivo)) {
 
 try {
     // ==========================================
-    // ✅ VALIDACIÓN Y SUBIDA DEL PDF PARA MOTIVOS ESPECIALES
+    // VALIDACIÓN Y SUBIDA DEL PDF PARA MOTIVOS ESPECIALES
     // ==========================================
     $motivos_con_pdf = ['VENTA_CLIENTE_BLACK', 'VENTA_CLIENTE_CONTACTABILIDAD', 'VENTA_CLIENTE_VE'];
     $ruta_pdf = null;
@@ -155,12 +153,15 @@ try {
     }
 
     // ==========================================
-    // ✅ OPTIMIZADO: AGRUPAR SKUs POR ANALISTA + TIPO (Consolida el trabajo)
+    // OPTIMIZADO: AGRUPAR SKUs POR ANALISTA + TIPO (Consolida el trabajo)
     // ==========================================
     $grupos = [];
     $skus_procesados = [];
     $errores_detalle = [];
     
+    // ✅ Cargar helper de reemplazos una sola vez al inicio del bucle
+    require_once __DIR__ . '/helpers_reemplazos.php';
+
     foreach ($datos_filas as $fila) {
         $sku = $fila['sku'];
         if (in_array($sku, $skus_procesados)) continue;
@@ -178,7 +179,7 @@ try {
         
         $id_sub_familia = (int)$info_sku['sub_fam'];
         
-        // ✅ 2. Buscar familia y analista asignado en la tabla maestra de planificación (MAPEANDO A USERNAME)
+        // 2. Buscar familia y analista asignado en la tabla maestra de planificación (MAPEANDO A USERNAME)
         $sql_asignacion = "SELECT p.id_familia, 
                                   COALESCE(u.usuario, TRIM(p.analista_repo_tienda)) as analista_username
                            FROM input_clientes.planificacion_asignacion_equipos p
@@ -196,7 +197,10 @@ try {
         }
         
         $id_familia = (int)$row_asignacion['id_familia'];
-        $analista = trim($row_asignacion['analista_username']); // ✅ Ahora obtiene el username
+        $analista = trim($row_asignacion['analista_username']);
+        
+        // ✅ NUEVO: Verificar si el analista asignado está de vacaciones
+        $analista = verificarYAplicarReemplazo($pdo, $analista);
         
         // 3. Detectar si es peligroso (ASIGNACIÓN DINÁMICA desde config_analistas_peligrosos)
         $es_peligroso = false;
@@ -210,7 +214,6 @@ try {
             if ($prod_peligroso && !empty($prod_peligroso['clase'])) {
                 $clase = (int)$prod_peligroso['clase'];
                 
-                // ✅ CONSULTA DINÁMICA: Buscar analista asignado para esta clase
                 $sql_config = "SELECT analista_asignado, id_familia_asociada 
                             FROM Analisis_Procesos.config_analistas_peligrosos 
                             WHERE clase_peligro = :clase AND activo = 1 LIMIT 1";
@@ -221,8 +224,12 @@ try {
                 if ($config_peligroso) {
                     $es_peligroso = true;
                     $familia_final = (int)$config_peligroso['id_familia_asociada'];
-                    $analista = trim($config_peligroso['analista_asignado']); // ✅ FORZAR analista (asegúrate de que aquí haya usernames)
-                    error_log("PELIGROSO CLASE $clase: SKU $sku → Familia $familia_final → Analista: $analista");
+                    $analista = trim($config_peligroso['analista_asignado']);
+                    
+                    // ✅ NUEVO: Verificar si el analista de peligrosos está de vacaciones
+                    $analista = verificarYAplicarReemplazo($pdo, $analista);
+                    
+                    error_log("PELIGROSO CLASE $clase: SKU $sku → Familia $familia_final → Analista final: $analista");
                 } else {
                     error_log("⚠️ SIN CONFIGURACIÓN para clase $clase. SKU $sku mantiene analista original.");
                 }
@@ -231,15 +238,14 @@ try {
             error_log("Error verificando productos peligrosos: " . $e->getMessage());
         }
         
-        // 4. ✅ OPTIMIZACIÓN: Crear clave de agrupación por ANALISTA y TIPO
-        // Esto evita crear múltiples solicitudes para el mismo analista si tiene varias subfamilias en el archivo.
+        // 4. OPTIMIZACIÓN: Crear clave de agrupación por ANALISTA y TIPO
         $tipo = $es_peligroso ? 'peligroso' : 'normal';
         $grupo_key = "{$analista}_{$tipo}";
         
         if (!isset($grupos[$grupo_key])) {
             $grupos[$grupo_key] = [
-                'id_familia' => $familia_final, // Guarda la primera como referencia para la solicitud padre
-                'id_sub_familia' => $id_sub_familia, // Guarda la primera como referencia
+                'id_familia' => $familia_final,
+                'id_sub_familia' => $id_sub_familia,
                 'analista' => $analista,
                 'tipo' => $tipo,
                 'skus' => []
@@ -260,15 +266,14 @@ try {
     }
 
     // ==========================================
-    // ✅ CREAR SOLICITUDES POR CADA GRUPO (CON ARRAY DETALLE PARA EL FRONTEND)
+    // CREAR SOLICITUDES POR CADA GRUPO
     // ==========================================
     $solicitudes_creadas = [];
-    $detalle = []; // ✅ Array para que el JavaScript muestre el resumen visual
+    $detalle = [];
     $total_procesados = 0;
     $total_rechazados = 0;
     
     foreach ($grupos as $grupo_key => $grupo) {
-        // Crear solicitud padre
         $sql_padre = "INSERT INTO Analisis_Procesos.solicitudes 
                       (id_tienda, usuario_tienda, id_familia, id_sub_familia, usuario_proceso, estado_general, observaciones_generales, motivo_carga, archivo_venta_pdf, fecha_solicitud) 
                       VALUES (:id_tienda, :usuario_tienda, :id_familia, :id_sub_familia, :usuario_proceso, 'PENDIENTE', :observaciones, :motivo, :ruta_pdf, NOW())";
@@ -279,7 +284,7 @@ try {
             'usuario_tienda' => $usuario_tienda,
             'id_familia' => $grupo['id_familia'],
             'id_sub_familia' => $grupo['id_sub_familia'],
-            'usuario_proceso' => $grupo['analista'], // ✅ Asignación automática consolidada (ahora es username)
+            'usuario_proceso' => $grupo['analista'], // ✅ Guarda el username (o el del reemplazo)
             'observaciones' => $observaciones,
             'motivo' => $motivo,
             'ruta_pdf' => $ruta_pdf
@@ -389,7 +394,6 @@ try {
         ];
     }
     
-    // ✅ RESPUESTA JSON COMPLETA Y COMPATIBLE CON EL JS
     echo json_encode([
         'success' => true,
         'message' => "Se crearon " . count($solicitudes_creadas) . " solicitudes automáticamente: $total_procesados aprobados, $total_rechazados rechazados",

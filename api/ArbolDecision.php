@@ -1,12 +1,9 @@
 <?php
-// Forzar limpieza de caché en producción (puedes quitarlo una vez que funcione)
+// Forzar limpieza de caché en producción
 if (function_exists('opcache_reset')) {
     opcache_reset();
 }
 
-/**
- * Clase para evaluar las reglas de negocio (Árbol de Decisión)
- */
 class ArbolDecision {
 
     public static function evaluar($sku, $cantidad_solicitada, $datos_sugerido, $pdo = null) {
@@ -22,7 +19,6 @@ class ArbolDecision {
             'nota_aprobacion' => null
         ];
 
-        // Array para acumular mensajes de aprobación de forma segura (evita duplicados)
         $notas_aprobacion = [];
 
         // ==========================================
@@ -36,14 +32,97 @@ class ArbolDecision {
         }
 
         // ==========================================
-        // 1. EXTRAER VARIABLES PRIMERO (Necesarias para las reglas siguientes)
+        // ✅ REGLA 0.1: VALIDACIÓN DE CASEPACK ACTIVO
+        // ==========================================
+        if ($pdo) {
+            $sql_casepack = "SELECT 1 FROM sodimac_grt.case_pack_maestro WHERE sku = :sku AND CP_activo = 1 LIMIT 1";
+            $stmt_casepack = $pdo->prepare($sql_casepack);
+            $stmt_casepack->execute(['sku' => $sku]);
+            $tiene_casepack_activo = $stmt_casepack->fetch();
+            
+            if (!$tiene_casepack_activo) {
+                $resultado['puede_cargar'] = false;
+                $resultado['motivo_rechazo'] = "📦 CASEPACK INACTIVO: Este producto no tiene un casepack activo configurado para ningún proveedor. No es posible cargarlo por ninguna plataforma. Contacte al administrador para activar el casepack.";
+                $resultado['cantidad_autorizada'] = 0;
+                return $resultado;
+            }
+        }
+
+                // ==========================================
+        // ✅ REGLA 0.2: VALIDACIÓN DE CAPACIDAD MÁXIMA (CAMIÓN COMPLETO) CON PROYECCIÓN DE CONSUMO
+        // ==========================================
+        $id_proveedor = $datos_sugerido['id_proveedor'] ?? null;
+        
+        if ($pdo && $id_proveedor) {
+            $sql_prov_camion = "SELECT 1 FROM Analisis_Procesos.config_proveedores_camion_completo 
+                                WHERE id_proveedor = :id_proveedor AND activo = 1 LIMIT 1";
+            $stmt_prov = $pdo->prepare($sql_prov_camion);
+            $stmt_prov->execute(['id_proveedor' => $id_proveedor]);
+            $es_proveedor_camion = $stmt_prov->fetch();
+
+            if ($es_proveedor_camion) {
+                $limite_maximo = 0;
+                $id_tienda_evaluar = (int)($datos_sugerido['id_tienda'] ?? 0);
+                
+                // A. Prioridad: 'maxduro' en levantamiento_tienda (✅ CORREGIDO: agregado schema sodimac_grt)
+                if ($id_tienda_evaluar > 0) {
+                    $sql_maxduro = "SELECT maxduro FROM sodimac_grt.levantamiento_tienda 
+                                    WHERE sku = :sku AND id_tienda = :id_tienda LIMIT 1";
+                    $stmt_maxduro = $pdo->prepare($sql_maxduro);
+                    $stmt_maxduro->execute(['sku' => $sku, 'id_tienda' => $id_tienda_evaluar]);
+                    $row_maxduro = $stmt_maxduro->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($row_maxduro && isset($row_maxduro['maxduro']) && $row_maxduro['maxduro'] > 0) {
+                        $limite_maximo = (int)$row_maxduro['maxduro'];
+                    }
+                }
+                
+                // B. Fallback: 'capacity' de sugerido_diario
+                if ($limite_maximo == 0 && isset($datos_sugerido['capacity']) && $datos_sugerido['capacity'] > 0) {
+                    $limite_maximo = (int)$datos_sugerido['capacity'];
+                }
+
+                // C. Aplicar la restricción con proyección inteligente de consumo
+                if ($limite_maximo > 0) {
+                    $disp_tda = (float)($datos_sugerido['disp_tda'] ?? 0);
+                    $pend_tda = (float)($datos_sugerido['pend_tda'] ?? 0);
+                    $inventario_proyectado_hoy = $disp_tda + $pend_tda + $cantidad_solicitada;
+                    
+                    // Calcular demanda base y Lead Time para la proyección
+                    $pv6 = (float)($datos_sugerido['PV6'] ?? 0);
+                    $pv3 = (float)($datos_sugerido['pv3'] ?? $datos_sugerido['PV3'] ?? 0);
+                    $demanda_base = max($pv6, $pv3);
+                    $lead_time = (float)($datos_sugerido['lead_time_total'] ?? $datos_sugerido['lt'] ?? 0);
+                    
+                    // Consumo estimado durante el tiempo que tarda en llegar el camión
+                    $consumo_estimado_lt = ($demanda_base > 0 && $lead_time > 0) ? ($demanda_base * $lead_time) : 0;
+                    
+                    // Inventario real esperado cuando el camión llegue a la tienda
+                    $inventario_al_llegada = max(0, $inventario_proyectado_hoy - $consumo_estimado_lt);
+                    
+                    if ($inventario_al_llegada > $limite_maximo) {
+                        // ❌ RECHAZO REAL (Mensaje conciso)
+                        $resultado['puede_cargar'] = false;
+                        $resultado['motivo_rechazo'] = "🚚 RESTRICCIÓN CAMIÓN COMPLETO: El inventario al llegar ({$inventario_al_llegada} uds) superará el límite ({$limite_maximo} uds), incluso descontando el consumo del LT ({$consumo_estimado_lt} uds).";
+                        $resultado['cantidad_autorizada'] = 0;
+                        return $resultado;
+                        
+                    } elseif ($inventario_proyectado_hoy > $limite_maximo) {
+                        // ✅ APROBACIÓN CON ADVERTENCIA (Mensaje conciso)
+                        $notas_aprobacion[] = "⚠️ CAMIÓN COMPLETO: Se autoriza porque, aunque hoy se supera el límite ({$inventario_proyectado_hoy} uds), el consumo durante el LT ({$consumo_estimado_lt} uds) dejará el stock en {$inventario_al_llegada} uds al llegar.";
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 1. EXTRAER VARIABLES (Necesarias para las reglas siguientes)
         // ==========================================
         $id_tienda_evaluar = (int)($datos_sugerido['id_tienda'] ?? 0);
         $disp_tda = (float)($datos_sugerido['disp_tda'] ?? 0);
         $pend_tda = (float)($datos_sugerido['pend_tda'] ?? 0);
         $pv6 = (float)($datos_sugerido['PV6'] ?? 0);
         
-        // ✅ Extraer PV3 y calcular la DEMANDA BASE (el mayor entre PV6 y PV3)
         $pv3 = (float)($datos_sugerido['pv3'] ?? $datos_sugerido['PV3'] ?? 0);
         $demanda_base = max($pv6, $pv3);
         
@@ -51,7 +130,6 @@ class ArbolDecision {
         $pend_bod = (float)($datos_sugerido['pend_bod'] ?? 0);
         $md_sugerido = strtoupper(trim($datos_sugerido['MD_sugerido'] ?? $datos_sugerido['md_defecto_sku'] ?? ''));
         
-        // Leer MIN (con fallback a múltiples nombres)
         $min_despacho_raw = $datos_sugerido['min_despacho'] ?? $datos_sugerido['MIN'] ?? $datos_sugerido['min'] ?? 0;
         $min_despacho = (float)$min_despacho_raw;
 
@@ -60,7 +138,6 @@ class ArbolDecision {
         $vta_sem_3 = (float)($datos_sugerido['vta_sem_3'] ?? $datos_sugerido['v3'] ?? 0);
         $lead_time = (float)($datos_sugerido['lead_time_total'] ?? $datos_sugerido['lt'] ?? 0);
 
-        // Calcular stock y definir estados ANTES de usarlos
         $stock_total_tienda = $disp_tda + $pend_tda;
         $es_quiebre = ($stock_total_tienda == 0);
         $stock_bajo_min = ($min_despacho > 0 && $stock_total_tienda < $min_despacho);
@@ -113,10 +190,8 @@ class ArbolDecision {
                         $peso_proyectado = $peso_actual_tienda + $peso_solicitado;
                         $limite_con_tolerancia = $limite_kg * 1.10; // 10% de tolerancia
                         
-                        $consumo_estimado_lt = ($pv6 > 0 && $lead_time > 0) ? ($pv6 * $lead_time * $peso_unitario) : 0;
-                        $peso_estimado_al_llegar = max(0, $peso_proyectado - $consumo_estimado_lt);
-                        
-                        error_log("PESO PELIGROSO: SKU=$sku | Clase=$clase_peligro ($nombre_clase) | Actual=" . round($peso_actual_tienda, 2) . "kg | Solicitado=" . round($peso_solicitado, 2) . "kg | Proyectado=" . round($peso_proyectado, 2) . "kg | Limite=" . round($limite_kg, 2) . "kg | Tolerancia=" . round($limite_con_tolerancia, 2) . "kg");
+                        $consumo_estimado_lt_peso = ($pv6 > 0 && $lead_time > 0) ? ($pv6 * $lead_time * $peso_unitario) : 0;
+                        $peso_estimado_al_llegar = max(0, $peso_proyectado - $consumo_estimado_lt_peso);
                         
                         if ($peso_proyectado > $limite_con_tolerancia) {
                             $resultado['puede_cargar'] = false;
@@ -126,7 +201,7 @@ class ArbolDecision {
                         }
                         
                         if ($peso_estimado_al_llegar <= $limite_kg && $peso_proyectado > $limite_kg) {
-                            $notas_aprobacion[] = "⚠️ SEGURIDAD ($nombre_clase): Peso proyectado (" . round($peso_proyectado, 2) . " kg) supera el límite (" . round($limite_kg, 2) . " kg), pero se aprueba porque el consumo estimado durante el LT (" . round($consumo_estimado_lt, 2) . " kg) lo dejará bajo el límite al momento de la llegada (" . round($peso_estimado_al_llegar, 2) . " kg).";
+                            $notas_aprobacion[] = "⚠️ SEGURIDAD ($nombre_clase): Peso proyectado (" . round($peso_proyectado, 2) . " kg) supera el límite (" . round($limite_kg, 2) . " kg), pero se aprueba porque el consumo estimado durante el LT (" . round($consumo_estimado_lt_peso, 2) . " kg) lo dejará bajo el límite al momento de la llegada (" . round($peso_estimado_al_llegar, 2) . " kg).";
                         } elseif ($peso_proyectado > $limite_kg && $peso_proyectado <= $limite_con_tolerancia) {
                             $notas_aprobacion[] = "⚠️ SEGURIDAD ($nombre_clase): Peso proyectado (" . round($peso_proyectado, 2) . " kg) supera el límite estricto (" . round($limite_kg, 2) . " kg), pero se aprueba dentro de la tolerancia del 10% (" . round($limite_con_tolerancia, 2) . " kg).";
                         } else {
@@ -134,7 +209,6 @@ class ArbolDecision {
                         }
                     } else {
                         $notas_aprobacion[] = "⚠️ SEGURIDAD ($nombre_clase): No se pudo validar el peso porque el SKU no tiene UNIT_WT registrado en MAEMED.";
-                        error_log("PESO PELIGROSO SIN PESO: SKU=$sku no tiene UNIT_WT en MAEMED");
                     }
                 }
             }
@@ -185,29 +259,24 @@ class ArbolDecision {
                 $limite_redondeado = $limite_quiebre;
             }
             
-            error_log("ARBOL LIMITE QUIEBRE: Base=$limite_quiebre | Redondeado=$limite_redondeado ($tipo_limite) | SKU=$sku | MIN=$min_despacho | DEMANDA_BASE=$demanda_base");
-            
             if ($cantidad_solicitada > $limite_redondeado) {
                 $cantidad_original_quiebre = $cantidad_solicitada;
                 $cantidad_solicitada = $limite_redondeado;
                 $resultado['cantidad_autorizada'] = $limite_redondeado; 
                 $notas_aprobacion[] = "Cantidad ajustada de $cantidad_original_quiebre a $limite_redondeado (límite por quiebre basado en demanda máxima).";
-                error_log("ARBOL: Cantidad ajustada automáticamente de $cantidad_original_quiebre a $limite_redondeado por quiebre.");
             }
             
             $notas_aprobacion[] = "Quiebre aprobado ($cantidad_solicitada <= $limite_redondeado).";
         } else {
             
             // ==========================================
-            // ✅ PASO 3: VALIDACIÓN DE STOCK EN BODEGA (PRIORIDAD ALTA)
+            // PASO 3: VALIDACIÓN DE STOCK EN BODEGA (PRIORIDAD ALTA)
             // ==========================================
-            // Esta validación va ANTES de las excepciones de MIN/SDS para evitar aprobar cargas sin stock real.
             if ($md_sugerido === 'COMPRA_LOCAL' || $md_sugerido === 'CL' || 
                 $md_sugerido === 'CROSS_DOCKING' || $md_sugerido === 'XD') {
                 // No validar stock en bodega para estos métodos
             } elseif ($disp_bod == 0) {
                 
-                // Calcular variables para bypass de emergencia
                 $tendencia_venta = ($vta_sem_3 > 0) ? (($vta_sem_1 - $vta_sem_3) / $vta_sem_3) * 100 : 0;
                 $stock_necesario_lt = ($demanda_base > 0 && $lead_time > 0) ? ($demanda_base * $lead_time) : 0;
                 $es_tendencia_alza = $tendencia_venta > 20;
@@ -251,20 +320,18 @@ class ArbolDecision {
                                     $resultado['puede_cargar'] = false;
                                     $resultado['motivo_rechazo'] = "$motivo_base Detalle: $total_detalle uds en estado '$estado_mostrar' con ETA estimada para el $fecha_formateada.";
                                     $resultado['cantidad_autorizada'] = 0;
-                                    return $resultado; // <-- Sale inmediatamente, no deja pasar a la excepción de MIN
+                                    return $resultado;
                                 }
                             }
                         } catch (PDOException $e) {
                             error_log("Error SP pendientes: " . $e->getMessage());
                         }
                     }
-                    // Fallback si el Stored Procedure falla o no devuelve datos
                     $resultado['puede_cargar'] = false;
                     $resultado['motivo_rechazo'] = "$motivo_base (No se pudieron obtener los detalles de la programación).";
                     $resultado['cantidad_autorizada'] = 0;
                     return $resultado;
                 } else {
-                    // No hay stock ni en camino
                     $resultado['puede_cargar'] = false;
                     $resultado['motivo_rechazo'] = "RECHAZO TOTAL: Sin saldo disponible en CD y sin unidades en camino. Desconectar del mix o solicitar reemplazo.";
                     $resultado['cantidad_autorizada'] = 0;
@@ -275,7 +342,6 @@ class ArbolDecision {
             // ==========================================
             // PASO 4: VALIDACIONES SDS Y EXCEPCIÓN DE MIN
             // ==========================================
-            // ✅ EXCEPCIÓN: Si el stock es menor al MIN, NO validar SDS para permitir la reposición obligatoria
             if (!$stock_bajo_min) {
                 $semanas_stock_actual = ($demanda_base > 0) ? ($stock_total_tienda / $demanda_base) : 999;
                 $stock_proyectado = $stock_total_tienda + $cantidad_solicitada;
@@ -295,14 +361,13 @@ class ArbolDecision {
                     return $resultado;
                 }
             } else {
-                // Se aplica la excepción
                 error_log("ARBOL: EXCEPCIÓN APLICADA - Stock ($stock_total_tienda) < MIN ($min_despacho). Se omite validación de SDS para permitir reposición.");
                 $notas_aprobacion[] = "Excepción: Stock bajo MIN ($stock_total_tienda < $min_despacho), se permite carga sin validar límite de SDS.";
             }
         }
 
         // ==========================================
-        // PASO 5: BYPASS DE EMERGENCIA (Para casos con stock en bodega pero que requieren autorización rápida)
+        // PASO 5: BYPASS DE EMERGENCIA
         // ==========================================
         $tendencia_venta = ($vta_sem_3 > 0) ? (($vta_sem_1 - $vta_sem_3) / $vta_sem_3) * 100 : 0;
         $stock_necesario_lt = ($demanda_base > 0 && $lead_time > 0) ? ($demanda_base * $lead_time) : 0;
@@ -320,7 +385,6 @@ class ArbolDecision {
         // ==========================================
         // PASO 6: REGLA 5 - STOCK ALTO + SIN BODEGA + TRF
         // ==========================================
-        // (Nota: Esta regla es un respaldo, ya que el Paso 3 suele capturar la mayoría de los casos de disp_bod == 0)
         if (!$es_quiebre && !$stock_bajo_min) {
             $semanas_stock_actual = ($demanda_base > 0) ? ($stock_total_tienda / $demanda_base) : 999;
             if ($semanas_stock_actual >= 10 && $md_sugerido === 'TRF' && $disp_bod == 0) {
@@ -332,7 +396,6 @@ class ArbolDecision {
             }
         }
 
-        // ✅ Unir todos los mensajes de aprobación con un separador limpio
         $resultado['nota_aprobacion'] = !empty($notas_aprobacion) ? implode(' | ', $notas_aprobacion) : null;
 
         return $resultado;

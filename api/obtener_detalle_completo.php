@@ -14,6 +14,7 @@ header('Content-Type: application/json; charset=utf-8');
 $id_solicitud = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $rol_actual = $_SESSION['rol'] ?? '';
 $usuario_actual = $_SESSION['user_id'] ?? '';
+$nombre_analista_sesion = $_SESSION['nombre'] ?? '';
 
 if ($id_solicitud <= 0) {
     echo json_encode(['success' => false, 'message' => 'ID inválido']);
@@ -21,37 +22,105 @@ if ($id_solicitud <= 0) {
 }
 
 try {
-    $params = [];
+    $params_final = ['id_solicitud' => $id_solicitud];
     $where_familia = '';
 
-    // 1. Si es analista, aplicar filtro de familias
+    // 1. Si es analista, aplicar filtro de familias CON SOPORTE DE REEMPLAZOS
     if ($rol_actual === 'analista') {
-        // ✅ CORREGIDO: Usar LIKE para manejar múltiples analistas separados por '|'
-        $sql_familias = "SELECT DISTINCT d.Familia as id_familia
-                         FROM FulFillment.distribucion_analista_familia d
-                         INNER JOIN rct.usuarios_solicitudes_oc u 
-                             ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%')
-                         WHERE u.usuario = :usuario_analista";
+        // ✅ Cargar helper de reemplazos
+        require_once __DIR__ . '/helpers_reemplazos.php';
+        $analistas_efectivos = obtenerAnalistasEfectivos($pdo, $usuario_actual);
         
-        $stmt_familias = $pdo->prepare($sql_familias);
-        $stmt_familias->execute(['usuario_analista' => $usuario_actual]);
-        $familias_asignadas = $stmt_familias->fetchAll(PDO::FETCH_COLUMN);
+        $puede_acceder = false;
+
+        // NIVEL 1: Verificar por SUBFAMILIA (Sistema Nuevo)
+        $params_sub = [];
+        $placeholders_sub = [];
+        foreach ($analistas_efectivos as $index => $usr) {
+            $param_name = 'usr_sub_' . $index;
+            $placeholders_sub[] = ':' . $param_name;
+            $params_sub[$param_name] = $usr;
+        }
         
-        if (empty($familias_asignadas)) {
+        $sql_sub = "SELECT DISTINCT p.id_sub_familia 
+                    FROM input_clientes.planificacion_asignacion_equipos p
+                    WHERE p.analista_repo_tienda IN (" . implode(',', $placeholders_sub) . ")";
+        $stmt_sub = $pdo->prepare($sql_sub);
+        $stmt_sub->execute($params_sub); // ✅ Solo parámetros de esta consulta
+        $subfamilias_asignadas = $stmt_sub->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($subfamilias_asignadas)) {
+            $params_fam_sub = [];
+            $placeholders_fam_sub = [];
+            foreach ($subfamilias_asignadas as $index => $sub) {
+                $param_name = 'sub_' . $index;
+                $placeholders_fam_sub[] = ':' . $param_name;
+                $params_fam_sub[$param_name] = $sub;
+            }
+            
+            // También permitir si el usuario_proceso coincide con cualquiera de los analistas efectivos
+            $params_proc = [];
+            $placeholders_proc = [];
+            foreach ($analistas_efectivos as $index => $usr) {
+                $param_name = 'usr_proc1_' . $index;
+                $placeholders_proc[] = ':' . $param_name;
+                $params_proc[$param_name] = $usr;
+            }
+            
+            $where_familia = " AND (s.id_sub_familia IN (" . implode(',', $placeholders_fam_sub) . ") OR s.usuario_proceso IN (" . implode(',', $placeholders_proc) . "))";
+            $params_final = array_merge($params_final, $params_fam_sub, $params_proc);
+            $puede_acceder = true;
+        } else {
+            // NIVEL 2 (FALLBACK): Buscar por FAMILIAS (Sistema Antiguo)
+            $params_usr = [];
+            $placeholders_usr = [];
+            foreach ($analistas_efectivos as $index => $usr) {
+                $param_name = 'usr_fam_' . $index;
+                $placeholders_usr[] = ':' . $param_name;
+                $params_usr[$param_name] = $usr;
+            }
+            
+            $sql_fam = "SELECT DISTINCT d.Familia as id_familia
+                        FROM FulFillment.distribucion_analista_familia d
+                        INNER JOIN rct.usuarios_solicitudes_oc u 
+                            ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%')
+                        WHERE u.usuario IN (" . implode(',', $placeholders_usr) . ")";
+            
+            $stmt_fam = $pdo->prepare($sql_fam);
+            $stmt_fam->execute($params_usr); // ✅ Solo parámetros de esta consulta
+            $familias_asignadas = $stmt_fam->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (!empty($familias_asignadas)) {
+                $params_fam2 = [];
+                $placeholders_fam2 = [];
+                foreach ($familias_asignadas as $index => $familia) {
+                    $param_name = 'fam_' . $index;
+                    $placeholders_fam2[] = ':' . $param_name;
+                    $params_fam2[$param_name] = $familia;
+                }
+                $where_familia = " AND s.id_familia IN (" . implode(',', $placeholders_fam2) . ")";
+                $params_final = array_merge($params_final, $params_fam2);
+                $puede_acceder = true;
+            } else {
+                // NIVEL 3 (EMERGENCIA): Filtrar solo por usuario_proceso
+                $params_proc3 = [];
+                $placeholders_proc3 = [];
+                foreach ($analistas_efectivos as $index => $usr) {
+                    $param_name = 'usr_proc3_' . $index;
+                    $placeholders_proc3[] = ':' . $param_name;
+                    $params_proc3[$param_name] = $usr;
+                }
+                $where_familia = " AND s.usuario_proceso IN (" . implode(',', $placeholders_proc3) . ")";
+                $params_final = array_merge($params_final, $params_proc3);
+                $puede_acceder = true;
+            }
+        }
+        
+        if (!$puede_acceder) {
             echo json_encode(['success' => false, 'message' => 'No tienes familias asignadas.']);
             exit;
         }
-        
-        $placeholders = [];
-        foreach ($familias_asignadas as $index => $familia) {
-            $param_name = 'fam_' . $index;
-            $placeholders[] = ':' . $param_name;
-            $params[$param_name] = $familia;
-        }
-        $where_familia = " AND s.id_familia IN (" . implode(',', $placeholders) . ")";
     }
-
-    $params['id_solicitud'] = $id_solicitud;
 
     // 2. Consulta COMPLETA de SKUs con Inventario Real de Bodegas
     $sql = "SELECT 
@@ -61,11 +130,8 @@ try {
                 ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
                 sd.capacity, sd.lead_time_total as lt,
                 sd.disp as disp_tda, sd.pend as pend_tda, 
-                
-                -- ✅ NUEVO: Stock real de bodegas con asigna = 1
                 COALESCE(bod_saldo.disp_bod_calc, 0) as disp_bod, 
                 COALESCE(bod_saldo.pend_bod_calc, 0) as pend_bod,
-                
                 sd.vta_sem_1 as v1, sd.vta_sem_2 as v2, sd.vta_sem_3 as v3, sd.vta_sem_4 as v4, sd.vta_sem_5 as v5, sd.vta_sem_6 as v6,
                 sd.unid_pallet,
                 ROUND((COALESCE(sd.disp, 0) + COALESCE(sd.pend, 0)) / NULLIF(sd.PV6, 0), 1) as sds_actual,
@@ -76,7 +142,6 @@ try {
             FROM Analisis_Procesos.solicitudes_carga sc
             INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud
             LEFT JOIN (
-                -- Subconsulta para traer SOLO el registro más reciente por SKU y Tienda del sugerido
                 SELECT sku, id_tienda, nombre_tienda, PV6, capacity, lead_time_total, disp, pend, 
                        vta_sem_1, vta_sem_2, vta_sem_3, vta_sem_4, vta_sem_5, vta_sem_6, unid_pallet, MD
                 FROM rct.sugerido_diario sd1
@@ -101,7 +166,7 @@ try {
             ORDER BY sc.id_detalle";
     
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute($params_final); // ✅ Solo parámetros que realmente usa
     $skus = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     if (empty($skus)) {
@@ -109,12 +174,12 @@ try {
         exit;
     }
 
-    // 3. Consulta del padre (✅ AGREGADO: motivo_carga y archivo_venta_pdf)
+    // 3. Consulta del padre
     $sql_padre = "SELECT s.estado_general, s.fecha_solicitud, s.observaciones_generales, s.motivo_carga, s.archivo_venta_pdf
                   FROM Analisis_Procesos.solicitudes s
                   WHERE s.id_solicitud = :id_solicitud {$where_familia}";
     $stmt_padre = $pdo->prepare($sql_padre);
-    $stmt_padre->execute($params);
+    $stmt_padre->execute($params_final); // ✅ Solo parámetros que realmente usa
     $solicitud = $stmt_padre->fetch();
     
     echo json_encode([

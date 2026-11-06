@@ -1,5 +1,5 @@
 <?php
-// api/solicitar_carga.php - VERSIÓN FINAL CORREGIDA (Mapeo Nombre → Username)
+// api/solicitar_carga.php - VERSIÓN FINAL CON SOPORTE DE REEMPLAZOS POR VACACIONES
 if (ob_get_level()) ob_end_clean();
 session_start();
 
@@ -62,13 +62,13 @@ if ($id_tienda <= 0 || empty($usuario_tienda)) {
 
 try {
     // ==========================================
-    // ✅ DETECCIÓN AUTOMÁTICA DE FAMILIA, SUBFAMILIA Y ANALISTA (CON MAPEO A USERNAME)
+    // ✅ DETECCIÓN AUTOMÁTICA DE FAMILIA, SUBFAMILIA Y ANALISTA (CON MAPEO A USERNAME Y REEMPLAZOS)
     // ==========================================
     $id_familia = null;
     $id_sub_familia = null;
     $analista_asignado = null;
 
-    // 1. Buscar en sugerido_diario (✅ CORREGIDO: la columna se llama 'fam', no 'id_familia')
+    // 1. Buscar en sugerido_diario
     $sql_info = "SELECT DISTINCT sub_fam, fam FROM rct.sugerido_diario WHERE sku = :sku LIMIT 1";
     $stmt_info = $pdo->prepare($sql_info);
     $stmt_info->execute(['sku' => $sku]);
@@ -91,6 +91,10 @@ try {
         
         if ($row_analista && !empty($row_analista['analista_username'])) {
             $analista_asignado = trim($row_analista['analista_username']);
+            
+            // ✅ NUEVO: Verificar si el analista asignado está de vacaciones
+            require_once __DIR__ . '/helpers_reemplazos.php';
+            $analista_asignado = verificarYAplicarReemplazo($pdo, $analista_asignado);
         }
     }
 
@@ -211,8 +215,13 @@ try {
             
             if ($config) {
                 $id_familia = (int)$config['id_familia_asociada'];
-                $analista_asignado = trim($config['analista_asignado']); // ✅ Ya debería ser username si lo configuraste así
-                error_log("PELIGROSO CLASE $clase: SKU $sku → Familia $id_familia → Analista: $analista_asignado");
+                $analista_asignado = trim($config['analista_asignado']); 
+                
+                // ✅ NUEVO: Verificar si el analista de peligrosos está de vacaciones
+                require_once __DIR__ . '/helpers_reemplazos.php';
+                $analista_asignado = verificarYAplicarReemplazo($pdo, $analista_asignado);
+                
+                error_log("PELIGROSO CLASE $clase: SKU $sku → Familia $id_familia → Analista final: $analista_asignado");
             } else {
                 error_log("⚠️ SIN CONFIGURACIÓN para clase $clase. SKU $sku mantiene analista original.");
             }
@@ -239,7 +248,7 @@ try {
         'usuario_tienda' => $usuario_tienda,
         'id_familia' => $id_familia,
         'id_sub_familia' => $id_sub_familia,
-        'usuario_proceso' => $analista_asignado, // ✅ Ahora guarda el USERNAME
+        'usuario_proceso' => $analista_asignado, // ✅ Guarda el username (o el del reemplazo si aplica)
         'observaciones' => $observaciones,
         'motivo' => $motivo,
         'ruta_pdf' => $ruta_pdf

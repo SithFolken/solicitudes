@@ -113,6 +113,14 @@ async function cargarSolicitudes() {
                     badgeExcel = `<span class="badge ${colorClass} ms-2" title="Exportado el ${sol.fecha_generacion_excel}"><i class="bi ${iconoExcel} me-1"></i>${texto}</span>`;
                 }
 
+                // ✅ NUEVO: Badge de Reemplazo (DEBAJO de los otros badges)
+                let badgeReemplazo = '';
+                if (sol.es_reemplazo && sol.nombre_analista_original) {
+                    badgeReemplazo = `<div class="mt-1"><span class="badge bg-warning text-dark" style="font-size: 0.7em; padding: 0.2em 0.5em;" title="Solicitud original de: ${sol.nombre_analista_original}">
+                        <i class="bi bi-arrow-repeat me-1"></i>Reemplazo: ${sol.nombre_analista_original.split(' ')[0]}
+                    </span></div>`;
+                }
+
                 let btnAccion = '';
                 if (estadoTexto.includes('PENDIENTE')) {
                     btnAccion = `<button class="btn btn-primary btn-sm" onclick="confirmarProcesamiento(${sol.id_solicitud}, '${nombreTienda}', ${sol.total_skus || 0})" title="Procesar solicitud"><i class="bi bi-gear"></i> Procesar</button>`;
@@ -129,7 +137,13 @@ async function cargarSolicitudes() {
                     <td>${nombreTienda}<br><small class="text-muted">${idTienda}</small></td>
                     <td class="text-center">${badgeSkus}</td>
                     <td class="text-center fw-bold">${sol.total_cantidad_solicitada || 0}</td>
-                    <td class="text-center"><span class="badge ${badgeClass}">${iconoExtra}${estadoTexto}</span>${badgeExcel}</td>
+                    <td class="text-center">
+                        <div class="d-flex flex-wrap justify-content-center gap-1 mb-1">
+                            <span class="badge ${badgeClass}">${iconoExtra}${estadoTexto}</span>
+                            ${badgeExcel}
+                        </div>
+                        ${badgeReemplazo}
+                    </td>
                     <td><small>${fechaFormateada}</small>${alertaTiempo}</td>
                     <td class="text-center">${btnAccion}</td>
                 `;
@@ -634,7 +648,7 @@ function getBadgeClass(estado) {
 }
 
 // ==========================================
-// Confirmar antes de entrar a procesar
+// Confirmar antes de entrar a procesar (VERSIÓN UNIFICADA)
 // ==========================================
 function confirmarProcesamiento(idSolicitud, nombreTienda, totalSkus) {
     Swal.fire({
@@ -650,22 +664,46 @@ function confirmarProcesamiento(idSolicitud, nombreTienda, totalSkus) {
                         </ul>
                     </div>
                </div>`,
-        icon: 'question', showCancelButton: true, confirmButtonColor: '#0056b3', cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, iniciar procesamiento', cancelButtonText: 'Cancelar'
+        icon: 'question', 
+        showCancelButton: true, 
+        confirmButtonColor: '#0056b3', 
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, iniciar procesamiento', 
+        cancelButtonText: 'Cancelar'
     }).then(async (result) => {
         if (result.isConfirmed) {
-            Swal.fire({ title: 'Cambiando estado...', text: 'Marcando solicitud como EN_PROCESO', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            Swal.fire({ 
+                title: 'Validando y cambiando estado...', 
+                text: 'Un momento por favor', 
+                allowOutsideClick: false, 
+                didOpen: () => { Swal.showLoading(); } 
+            });
+            
             try {
-                const responseEstado = await fetch('../api/cambiar_estado.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_solicitud: idSolicitud, estado: 'EN_PROCESO' }) });
-                const dataEstado = await responseEstado.json();
-                if (!dataEstado.success) { Swal.fire('Error', dataEstado.message || 'No se pudo cambiar el estado', 'error'); return; }
+                // ✅ LLAMADA ÚNICA: Valida permisos Y cambia el estado en el backend
+                const response = await fetch('../api/iniciar_procesamiento.php', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ id_solicitud: idSolicitud }) 
+                });
+                const data = await response.json();
                 
-                const responseSesion = await fetch('../api/iniciar_procesamiento.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_solicitud: idSolicitud }) });
-                const dataSesion = await responseSesion.json();
-                
-                if (dataSesion.success) { Swal.close(); window.location.href = `procesar_carga.php?id=${idSolicitud}`; } 
-                else { Swal.fire('Error', 'No se pudo iniciar la sesión de procesamiento', 'error'); }
-            } catch (error) { console.error('Error:', error); Swal.fire('Error', 'No se pudo conectar con el servidor', 'error'); }
+                if (data.success) { 
+                    Swal.close(); 
+                    // Recargar la lista para reflejar el nuevo estado antes de ir a la página de procesamiento
+                    await cargarSolicitudes(); 
+                    window.location.href = `procesar_carga.php?id=${idSolicitud}`; 
+                } else { 
+                    Swal.close();
+                    Swal.fire('Acceso Denegado', data.message || 'No tienes permiso para procesar esta solicitud', 'error');
+                    // Recargar la tabla por si acaso
+                    cargarSolicitudes();
+                }
+            } catch (error) { 
+                console.error('Error:', error); 
+                Swal.close();
+                Swal.fire('Error', 'No se pudo conectar con el servidor', 'error'); 
+            }
         }
     });
 }

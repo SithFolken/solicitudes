@@ -70,5 +70,36 @@ if (!defined('REEMPLAZOS_LOADED')) {
         
         return array_unique($analistas);
     }
+
+    /**
+     * ✅ NUEVA: Obtiene TODOS los reemplazos activos del usuario actual con sus fechas
+     * Devuelve array como: ['gluengo' => ['fecha_inicio' => '2026-11-02', 'fecha_fin' => '2026-11-16'], ...]
+     */
+    function obtenerReemplazosActivosConFechas($pdo, $usuario_reemplazo) {
+        try {
+            $sql = "SELECT usuario_original, fecha_inicio, fecha_fin 
+                    FROM Analisis_Procesos.config_reemplazos_analistas 
+                    WHERE usuario_reemplazo = :reemplazo 
+                      AND activo = 1 
+                      AND fecha_inicio <= CURDATE() 
+                      AND fecha_fin >= CURDATE()";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute(['reemplazo' => $usuario_reemplazo]);
+            $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $reemplazos = [];
+            foreach ($resultados as $row) {
+                $reemplazos[$row['usuario_original']] = [
+                    'fecha_inicio' => $row['fecha_inicio'],
+                    'fecha_fin' => $row['fecha_fin']
+                ];
+            }
+            return $reemplazos;
+        } catch (PDOException $e) {
+            error_log("Error en obtenerReemplazosActivosConFechas: " . $e->getMessage());
+            return [];
+        }
+    }
 }
 ?>

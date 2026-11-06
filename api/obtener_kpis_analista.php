@@ -16,51 +16,91 @@ try {
     $nombre_analista_sesion = $_SESSION['nombre'] ?? '';
     
     // ==========================================
-    // 1. LÓGICA DE FILTRO UNIFICADA (3 NIVELES)
+    // 1. LÓGICA DE FILTRO UNIFICADA (3 NIVELES + REEMPLAZOS)
     // ==========================================
     $where_analista = "";
     $params = [];
 
+    // ✅ Cargar helper de reemplazos
+    require_once __DIR__ . '/helpers_reemplazos.php';
+    $analistas_efectivos = obtenerAnalistasEfectivos($pdo, $usuario_actual);
+
     // NIVEL 1: Buscar por SUBFAMILIAS (Sistema Nuevo)
-    $sql_sub = "SELECT DISTINCT id_sub_familia FROM input_clientes.planificacion_asignacion_equipos WHERE analista_repo_tienda = :nombre_analista";
+    $params_sub = [];
+    $placeholders_sub = [];
+    foreach ($analistas_efectivos as $index => $usr) {
+        $param_name = 'usr_sub_' . $index;
+        $placeholders_sub[] = ':' . $param_name;
+        $params_sub[$param_name] = $usr;
+    }
+    
+    $sql_sub = "SELECT DISTINCT id_sub_familia FROM input_clientes.planificacion_asignacion_equipos 
+                WHERE analista_repo_tienda IN (" . implode(',', $placeholders_sub) . ")";
     $stmt_sub = $pdo->prepare($sql_sub);
-    $stmt_sub->execute(['nombre_analista' => $nombre_analista_sesion]);
+    $stmt_sub->execute($params_sub); // ✅ Solo los parámetros de esta consulta
     $subfamilias_asignadas = $stmt_sub->fetchAll(PDO::FETCH_COLUMN);
 
     if (!empty($subfamilias_asignadas)) {
-        $placeholders = [];
+        $params_fam_sub = [];
+        $placeholders_fam_sub = [];
         foreach ($subfamilias_asignadas as $index => $sub) {
             $param_name = 'sub_' . $index;
-            $placeholders[] = ':' . $param_name;
-            $params[$param_name] = $sub;
+            $placeholders_fam_sub[] = ':' . $param_name;
+            $params_fam_sub[$param_name] = $sub;
         }
-        $where_analista = "AND (s.id_sub_familia IN (" . implode(',', $placeholders) . ") OR s.usuario_proceso = :usuario_nombre_1)";
-        $params['usuario_nombre_1'] = $nombre_analista_sesion;
+        
+        // También permitir si el usuario_proceso coincide con cualquiera de los analistas efectivos
+        $params_proc = [];
+        $placeholders_proc = [];
+        foreach ($analistas_efectivos as $index => $usr) {
+            $param_name = 'usr_proc1_' . $index;
+            $placeholders_proc[] = ':' . $param_name;
+            $params_proc[$param_name] = $usr;
+        }
+        
+        $where_analista = "AND (s.id_sub_familia IN (" . implode(',', $placeholders_fam_sub) . ") OR s.usuario_proceso IN (" . implode(',', $placeholders_proc) . "))";
+        $params = array_merge($params_fam_sub, $params_proc);
     } else {
         // NIVEL 2 (FALLBACK): Buscar por FAMILIAS (Sistema Antiguo)
-        // ✅ CORREGIDO: Usar LIKE para manejar múltiples analistas separados por '|'
+        $params_usr = [];
+        $placeholders_usr = [];
+        foreach ($analistas_efectivos as $index => $usr) {
+            $param_name = 'usr_fam_' . $index;
+            $placeholders_usr[] = ':' . $param_name;
+            $params_usr[$param_name] = $usr;
+        }
+        
         $sql_fam = "SELECT DISTINCT d.Familia as id_familia 
                     FROM FulFillment.distribucion_analista_familia d 
                     INNER JOIN rct.usuarios_solicitudes_oc u 
                         ON d.Analista_reposicion_tienda LIKE CONCAT('%', u.nombre, '%') 
-                    WHERE u.usuario = :usuario_analista";
+                    WHERE u.usuario IN (" . implode(',', $placeholders_usr) . ")";
                     
         $stmt_fam = $pdo->prepare($sql_fam);
-        $stmt_fam->execute(['usuario_analista' => $usuario_actual]);
+        $stmt_fam->execute($params_usr); // ✅ Solo los parámetros de esta consulta
         $familias_asignadas = $stmt_fam->fetchAll(PDO::FETCH_COLUMN);
 
         if (!empty($familias_asignadas)) {
-            $placeholders = [];
+            $params_fam = [];
+            $placeholders_fam = [];
             foreach ($familias_asignadas as $index => $fam) {
                 $param_name = 'fam_' . $index;
-                $placeholders[] = ':' . $param_name;
-                $params[$param_name] = $fam;
+                $placeholders_fam[] = ':' . $param_name;
+                $params_fam[$param_name] = $fam;
             }
-            $where_analista = "AND s.id_familia IN (" . implode(',', $placeholders) . ")";
+            $where_analista = "AND s.id_familia IN (" . implode(',', $placeholders_fam) . ")";
+            $params = $params_fam;
         } else {
             // NIVEL 3 (EMERGENCIA): Filtrar solo por usuario_proceso
-            $where_analista = "AND s.usuario_proceso = :usuario_nombre_2";
-            $params['usuario_nombre_2'] = $nombre_analista_sesion;
+            $params_proc3 = [];
+            $placeholders_proc3 = [];
+            foreach ($analistas_efectivos as $index => $usr) {
+                $param_name = 'usr_proc3_' . $index;
+                $placeholders_proc3[] = ':' . $param_name;
+                $params_proc3[$param_name] = $usr;
+            }
+            $where_analista = "AND s.usuario_proceso IN (" . implode(',', $placeholders_proc3) . ")";
+            $params = $params_proc3;
         }
     }
 
