@@ -24,7 +24,11 @@ if (!defined('SLA_LOADED')) {
         ];
 
         if (!$pdo) {
-            return array_filter($feriados_fallback, fn($f) => str_starts_with($f, $anio . '-'));
+            // ✅ CORREGIDO: Función anónima clásica compatible con PHP 7.0+
+            // y strpos en lugar de str_starts_with (que es PHP 8.0+)
+            return array_filter($feriados_fallback, function($f) use ($anio) {
+                return strpos($f, $anio . '-') === 0;
+            });
         }
 
         try {
@@ -42,7 +46,9 @@ if (!defined('SLA_LOADED')) {
         }
 
         // Fallback si la consulta falla o no devuelve datos
-        return array_filter($feriados_fallback, fn($f) => str_starts_with($f, $anio . '-'));
+        return array_filter($feriados_fallback, function($f) use ($anio) {
+            return strpos($f, $anio . '-') === 0;
+        });
     }
 
     /**

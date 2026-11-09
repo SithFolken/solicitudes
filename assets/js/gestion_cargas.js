@@ -613,7 +613,7 @@ async function verDetalleSolicitud(idSolicitud) {
                         <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${sku.descripcion_producto || ''}">${sku.descripcion_producto || '-'}</td>
                         <td>${sku.v6 || 0}</td><td>${sku.v5 || 0}</td><td>${sku.v4 || 0}</td>
                         <td>${sku.v3 || 0}</td><td>${sku.v2 || 0}</td><td>${sku.v1 || 0}</td>
-                        <td>${sku.pv6 || 0}</td><td>${sku.pv3 || 0}</td><td>${sku.capacity || 0}</td><td>${sku.lt || 0}</td>
+                        <td>${sku.pv6 || 0}</td><td>${sku.pv3 || 0}</td><td>${sku.capacity || 0}</td><td>${Math.round(sku.lt) || 0}</td>
                         <td>${sku.disp_tda || 0}</td><td>${sku.pend_tda || 0}</td>
                         <td class="${sdsClass}">${sdsActual}</td>
                         <td><strong>${sku.carga_solicitada}</strong></td>

@@ -310,19 +310,22 @@ try {
             }
             
             $sql_sug = "SELECT 
-                            ROUND((COALESCE(sd.vta_sem_6, 0) + COALESCE(sd.vta_sem_5, 0) + COALESCE(sd.vta_sem_4, 0) + COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 6, 2) as PV6, 
-                            ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
-                            sd.disp as disp_tda, sd.pend as pend_tda, 
-                            COALESCE(bod_saldo.disp_bod_calc, 0) as disp_bod, COALESCE(bod_saldo.pend_bod_calc, 0) as pend_bod,
-                            sd.MD as MD_sugerido, sd.vta_sem_1, sd.vta_sem_2, sd.vta_sem_3, sd.lead_time_total, 
-                            COALESCE(sd.`MIN`, 0) as min_despacho
-                        FROM rct.sugerido_diario sd
-                        LEFT JOIN (
-                            SELECT inv.sku, SUM(inv.saldo_disponible) as disp_bod_calc, SUM(inv.saldo_pendiente) as pend_bod_calc
-                            FROM sodimac_grt.inventario_diario inv
-                            INNER JOIN sodimac_grt.bodegas b ON inv.id_sucursal = b.id_bodega WHERE b.asigna = 1 GROUP BY inv.sku
-                        ) as bod_saldo ON sd.sku = bod_saldo.sku
-                        WHERE sd.id_tienda = :id_tienda AND sd.sku = :sku ORDER BY sd.fecha DESC LIMIT 1";
+                        sd.id_proveedor,          
+                        sd.id_tienda,             
+                        ROUND((COALESCE(sd.vta_sem_6, 0) + COALESCE(sd.vta_sem_5, 0) + COALESCE(sd.vta_sem_4, 0) + COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 6, 2) as PV6, 
+                        ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
+                        sd.disp as disp_tda, sd.pend as pend_tda, 
+                        COALESCE(bod_saldo.disp_bod_calc, 0) as disp_bod, COALESCE(bod_saldo.pend_bod_calc, 0) as pend_bod,
+                        sd.MD as MD_sugerido, sd.vta_sem_1, sd.vta_sem_2, sd.vta_sem_3, sd.lead_time_total, 
+                        COALESCE(sd.`MIN`, 0) as min_despacho,
+                        sd.capacity               
+                    FROM rct.sugerido_diario sd
+                    LEFT JOIN (
+                        SELECT inv.sku, SUM(inv.saldo_disponible) as disp_bod_calc, SUM(inv.saldo_pendiente) as pend_bod_calc
+                        FROM sodimac_grt.inventario_diario inv
+                        INNER JOIN sodimac_grt.bodegas b ON inv.id_sucursal = b.id_bodega WHERE b.asigna = 1 GROUP BY inv.sku
+                    ) as bod_saldo ON sd.sku = bod_saldo.sku
+                    WHERE sd.id_tienda = :id_tienda AND sd.sku = :sku ORDER BY sd.fecha DESC LIMIT 1";
             
             $stmt_sug = $pdo->prepare($sql_sug);
             $stmt_sug->execute(['id_tienda' => $id_tienda, 'sku' => $sku]);

@@ -1,6 +1,12 @@
 <?php
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 if (session_status() === PHP_SESSION_NONE) session_start();
+
+
 
 $rol_permitido = isset($_SESSION['rol']) && in_array($_SESSION['rol'], ['analista', 'ejecutor', 'tienda']);
 if (!isset($_SESSION['user_id']) || !$rol_permitido) {

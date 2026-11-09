@@ -22,7 +22,7 @@ try {
     if (isset($_GET['fecha_inicio'])) $fecha_inicio = $_GET['fecha_inicio'];
     if (isset($_GET['fecha_fin'])) $fecha_fin = $_GET['fecha_fin'];
 
-        // 1. Obtener familias del supervisor (ahora retorna centenas: [1, 2] para "100-200")
+    // 1. Obtener familias del supervisor (ahora retorna centenas: [1, 2] para "100-200")
     $familias_supervisor = obtenerFamiliasSupervisor($pdo, $usuario_actual);
     
     // 2. Construir cláusula WHERE dinámica
@@ -65,13 +65,13 @@ try {
     $kpis_generales['tasa_rechazo'] = $total > 0 ? round(($rechazadas / $total) * 100, 1) : 0;
 
     // ==========================================
-    // 2. SOLICITUDES CON RETRASO (✅ CORREGIDO: Se agregaron :inicio y :fin)
+    // 2. SOLICITUDES CON RETRASO (✅ CORREGIDO: Ahora incluye PENDIENTE y EN_PROCESO para cuadrar con el detalle)
     // ==========================================
     $sql_retraso = "SELECT 
                         COUNT(*) as total_retrasadas,
                         ROUND(AVG(TIMESTAMPDIFF(HOUR, s.fecha_solicitud, NOW())), 1) as promedio_horas_retraso
                     FROM Analisis_Procesos.solicitudes s
-                    WHERE s.estado_general = 'PENDIENTE'
+                    WHERE s.estado_general IN ('PENDIENTE', 'EN_PROCESO')
                       AND s.fecha_solicitud < DATE_SUB(NOW(), INTERVAL 48 HOUR)
                       AND DATE(s.fecha_solicitud) BETWEEN :inicio AND :fin 
                       $where_familias_s";

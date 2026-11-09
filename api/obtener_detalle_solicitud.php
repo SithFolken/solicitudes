@@ -52,7 +52,7 @@ try {
                     FROM input_clientes.planificacion_asignacion_equipos p
                     WHERE p.analista_repo_tienda IN (" . implode(',', $placeholders_sub) . ")";
         $stmt_sub = $pdo->prepare($sql_sub);
-        $stmt_sub->execute($params_sub); // ✅ Solo parámetros de esta consulta
+        $stmt_sub->execute($params_sub);
         $subfamilias_asignadas = $stmt_sub->fetchAll(PDO::FETCH_COLUMN);
         
         if (!empty($subfamilias_asignadas)) {
@@ -64,7 +64,6 @@ try {
                 $params_fam_sub[$param_name] = $sub;
             }
             
-            // También permitir si el usuario_proceso coincide con cualquiera de los analistas efectivos
             $params_proc = [];
             $placeholders_proc = [];
             foreach ($analistas_efectivos as $index => $usr) {
@@ -93,7 +92,7 @@ try {
                         WHERE u.usuario IN (" . implode(',', $placeholders_usr) . ")";
             
             $stmt_fam = $pdo->prepare($sql_fam);
-            $stmt_fam->execute($params_usr); // ✅ Solo parámetros de esta consulta
+            $stmt_fam->execute($params_usr);
             $familias_asignadas = $stmt_fam->fetchAll(PDO::FETCH_COLUMN);
             
             if (!empty($familias_asignadas)) {
@@ -128,12 +127,12 @@ try {
         }
     }
     
-    // 1. Obtener datos de la solicitud padre (con filtro de seguridad y alias 's')
+    // 1. Obtener datos de la solicitud padre
     $sql_padre = "SELECT s.id_familia, s.id_sub_familia, s.observaciones_generales, s.estado_general, s.motivo_carga, s.archivo_venta_pdf
                   FROM Analisis_Procesos.solicitudes s
                   WHERE s.id_solicitud = :id_solicitud {$where_extra}";
     $stmt_padre = $pdo->prepare($sql_padre);
-    $stmt_padre->execute($params_final); // ✅ Solo parámetros que realmente usa esta consulta
+    $stmt_padre->execute($params_final);
     $solicitud = $stmt_padre->fetch(PDO::FETCH_ASSOC);
     
     if (!$solicitud) {
@@ -150,7 +149,11 @@ try {
                     sc.md, sc.campo_cambios, sc.estado_item, sc.id_familia,
                     sd.id_tienda, sd.nombre_tienda, sd.PV6 as pv6,
                     ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
-                    sd.MIN as min, sd.lead_time_total as lt,
+                    sd.MIN as min, 
+                    
+                    /* ✅ AQUÍ ESTÁ EL CAMBIO: Redondeamos el LT a entero para la vista */
+                    ROUND(sd.lead_time_total) as lt,
+                    
                     sd.disp as disp_tda, sd.pend as pend_tda, 
                     COALESCE(bod_saldo.disp_bod_calc, 0) as disp_bod, 
                     COALESCE(bod_saldo.pend_bod_calc, 0) as pend_bod,
@@ -176,7 +179,7 @@ try {
                 ORDER BY sc.id_detalle";
     
     $stmt_skus = $pdo->prepare($sql_skus);
-    $stmt_skus->execute(['id_solicitud' => $id_solicitud]); // ✅ Solo id_solicitud
+    $stmt_skus->execute(['id_solicitud' => $id_solicitud]);
     $skus = $stmt_skus->fetchAll(PDO::FETCH_ASSOC);
     
     echo json_encode([

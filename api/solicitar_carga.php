@@ -128,7 +128,9 @@ try {
     }
 
     // Consulta de datos del producto
-    $sql_sug = "SELECT 
+        $sql_sug = "SELECT 
+                    sd.id_proveedor,          
+                    sd.id_tienda,             
                     ROUND((COALESCE(sd.vta_sem_6, 0) + COALESCE(sd.vta_sem_5, 0) + COALESCE(sd.vta_sem_4, 0) + COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 6, 2) as PV6, 
                     ROUND((COALESCE(sd.vta_sem_3, 0) + COALESCE(sd.vta_sem_2, 0) + COALESCE(sd.vta_sem_1, 0)) / 3, 2) as pv3,
                     sd.disp as disp_tda, 
@@ -138,7 +140,8 @@ try {
                     sd.MD as MD_sugerido, 
                     sd.vta_sem_1, sd.vta_sem_2, sd.vta_sem_3, 
                     sd.lead_time_total, 
-                    COALESCE(sd.`MIN`, 0) as min_despacho
+                    COALESCE(sd.`MIN`, 0) as min_despacho,
+                    sd.capacity               
                 FROM rct.sugerido_diario sd
                 LEFT JOIN (
                     SELECT 

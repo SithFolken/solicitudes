@@ -64,7 +64,7 @@ class ArbolDecision {
                 $limite_maximo = 0;
                 $id_tienda_evaluar = (int)($datos_sugerido['id_tienda'] ?? 0);
                 
-                // A. Prioridad: 'maxduro' en levantamiento_tienda (✅ CORREGIDO: agregado schema sodimac_grt)
+                // A. Prioridad: 'maxduro' en levantamiento_tienda
                 if ($id_tienda_evaluar > 0) {
                     $sql_maxduro = "SELECT maxduro FROM sodimac_grt.levantamiento_tienda 
                                     WHERE sku = :sku AND id_tienda = :id_tienda LIMIT 1";
@@ -88,28 +88,29 @@ class ArbolDecision {
                     $pend_tda = (float)($datos_sugerido['pend_tda'] ?? 0);
                     $inventario_proyectado_hoy = $disp_tda + $pend_tda + $cantidad_solicitada;
                     
-                    // Calcular demanda base y Lead Time para la proyección
+                    // Calcular demanda base
                     $pv6 = (float)($datos_sugerido['PV6'] ?? 0);
                     $pv3 = (float)($datos_sugerido['pv3'] ?? $datos_sugerido['PV3'] ?? 0);
                     $demanda_base = max($pv6, $pv3);
-                    $lead_time = (float)($datos_sugerido['lead_time_total'] ?? $datos_sugerido['lt'] ?? 0);
                     
-                    // Consumo estimado durante el tiempo que tarda en llegar el camión
-                    $consumo_estimado_lt = ($demanda_base > 0 && $lead_time > 0) ? ($demanda_base * $lead_time) : 0;
+                    // LT viene en DÍAS, convertir a SEMANAS para multiplicar por demanda semanal
+                    $lead_time_dias = (float)($datos_sugerido['lead_time_total'] ?? $datos_sugerido['lt'] ?? 0);
+                    $lead_time_semanas = $lead_time_dias / 7;
+                    $consumo_estimado_lt = ($demanda_base > 0 && $lead_time_semanas > 0) ? ($demanda_base * $lead_time_semanas) : 0;
                     
                     // Inventario real esperado cuando el camión llegue a la tienda
                     $inventario_al_llegada = max(0, $inventario_proyectado_hoy - $consumo_estimado_lt);
                     
                     if ($inventario_al_llegada > $limite_maximo) {
-                        // ❌ RECHAZO REAL (Mensaje conciso)
+                        // ❌ RECHAZO REAL
                         $resultado['puede_cargar'] = false;
-                        $resultado['motivo_rechazo'] = "🚚 RESTRICCIÓN CAMIÓN COMPLETO: El inventario al llegar ({$inventario_al_llegada} uds) superará el límite ({$limite_maximo} uds), incluso descontando el consumo del LT ({$consumo_estimado_lt} uds).";
+                        $resultado['motivo_rechazo'] = "🚚 RESTRICCIÓN CAMIÓN COMPLETO: El inventario al llegar (" . round($inventario_al_llegada) . " uds) superará el límite ({$limite_maximo} uds), incluso descontando el consumo del LT segun VTA. Prom. (" . round($consumo_estimado_lt) . " uds).";
                         $resultado['cantidad_autorizada'] = 0;
                         return $resultado;
                         
                     } elseif ($inventario_proyectado_hoy > $limite_maximo) {
-                        // ✅ APROBACIÓN CON ADVERTENCIA (Mensaje conciso)
-                        $notas_aprobacion[] = "⚠️ CAMIÓN COMPLETO: Se autoriza porque, aunque hoy se supera el límite ({$inventario_proyectado_hoy} uds), el consumo durante el LT ({$consumo_estimado_lt} uds) dejará el stock en {$inventario_al_llegada} uds al llegar.";
+                        // ✅ APROBACIÓN CON ADVERTENCIA
+                        $notas_aprobacion[] = "⚠️ CAMIÓN COMPLETO: Se autoriza porque, aunque hoy se supera el límite ({$inventario_proyectado_hoy} uds), el consumo durante el LT segun VTA. Prom. (" . round($consumo_estimado_lt) . " uds) dejará el stock en " . round($inventario_al_llegada) . " uds al llegar.";
                     }
                 }
             }

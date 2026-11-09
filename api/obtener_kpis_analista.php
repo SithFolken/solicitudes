@@ -13,19 +13,18 @@ header('Content-Type: application/json; charset=utf-8');
 
 try {
     $usuario_actual = $_SESSION['user_id'] ?? '';
-    $nombre_analista_sesion = $_SESSION['nombre'] ?? '';
     
     // ==========================================
-    // 1. LÓGICA DE FILTRO UNIFICADA (3 NIVELES + REEMPLAZOS)
+    // 1. LÓGICA DE FILTRO UNIFICADA (IDÉNTICA A obtener_solicitudes.php)
     // ==========================================
     $where_analista = "";
     $params = [];
 
-    // ✅ Cargar helper de reemplazos
     require_once __DIR__ . '/helpers_reemplazos.php';
     $analistas_efectivos = obtenerAnalistasEfectivos($pdo, $usuario_actual);
+    $reemplazos_con_fechas = obtenerReemplazosActivosConFechas($pdo, $usuario_actual);
 
-    // NIVEL 1: Buscar por SUBFAMILIAS (Sistema Nuevo)
+    // NIVEL 1: Buscar por SUBFAMILIAS (Sistema Nuevo) - ✅ CORREGIDO CON INNER JOIN
     $params_sub = [];
     $placeholders_sub = [];
     foreach ($analistas_efectivos as $index => $usr) {
@@ -34,10 +33,13 @@ try {
         $params_sub[$param_name] = $usr;
     }
     
-    $sql_sub = "SELECT DISTINCT id_sub_familia FROM input_clientes.planificacion_asignacion_equipos 
-                WHERE analista_repo_tienda IN (" . implode(',', $placeholders_sub) . ")";
+    $sql_sub = "SELECT DISTINCT p.id_sub_familia 
+                FROM input_clientes.planificacion_asignacion_equipos p
+                INNER JOIN rct.usuarios_solicitudes_oc u ON TRIM(p.analista_repo_tienda) = u.nombre
+                WHERE u.usuario IN (" . implode(',', $placeholders_sub) . ")";
+                
     $stmt_sub = $pdo->prepare($sql_sub);
-    $stmt_sub->execute($params_sub); // ✅ Solo los parámetros de esta consulta
+    $stmt_sub->execute($params_sub);
     $subfamilias_asignadas = $stmt_sub->fetchAll(PDO::FETCH_COLUMN);
 
     if (!empty($subfamilias_asignadas)) {
@@ -49,17 +51,22 @@ try {
             $params_fam_sub[$param_name] = $sub;
         }
         
-        // También permitir si el usuario_proceso coincide con cualquiera de los analistas efectivos
-        $params_proc = [];
-        $placeholders_proc = [];
-        foreach ($analistas_efectivos as $index => $usr) {
-            $param_name = 'usr_proc1_' . $index;
-            $placeholders_proc[] = ':' . $param_name;
-            $params_proc[$param_name] = $usr;
+        // Condición de usuario propio + reemplazos con fechas
+        $condiciones_usuario = ["s.usuario_proceso = :usuario_propio"];
+        $params['usuario_propio'] = $usuario_actual;
+        
+        foreach ($reemplazos_con_fechas as $usr_original => $fechas) {
+            $idx = $usr_original;
+            $condiciones_usuario[] = "(s.usuario_proceso = :usr_orig_$idx AND (s.fecha_solicitud BETWEEN :fecha_ini_$idx AND :fecha_fin_$idx OR s.estado_general IN ('PENDIENTE', 'EN_PROCESO')))";
+            $params['usr_orig_' . $idx] = $usr_original;
+            $params['fecha_ini_' . $idx] = $fechas['fecha_inicio'];
+            $params['fecha_fin_' . $idx] = $fechas['fecha_fin'];
         }
         
-        $where_analista = "AND (s.id_sub_familia IN (" . implode(',', $placeholders_fam_sub) . ") OR s.usuario_proceso IN (" . implode(',', $placeholders_proc) . "))";
-        $params = array_merge($params_fam_sub, $params_proc);
+        $condicion_usuario_final = "(" . implode(' OR ', $condiciones_usuario) . ")";
+        $where_analista = "AND (s.id_sub_familia IN (" . implode(',', $placeholders_fam_sub) . ") OR $condicion_usuario_final)";
+        $params = array_merge($params, $params_fam_sub);
+        
     } else {
         // NIVEL 2 (FALLBACK): Buscar por FAMILIAS (Sistema Antiguo)
         $params_usr = [];
@@ -77,7 +84,7 @@ try {
                     WHERE u.usuario IN (" . implode(',', $placeholders_usr) . ")";
                     
         $stmt_fam = $pdo->prepare($sql_fam);
-        $stmt_fam->execute($params_usr); // ✅ Solo los parámetros de esta consulta
+        $stmt_fam->execute($params_usr);
         $familias_asignadas = $stmt_fam->fetchAll(PDO::FETCH_COLUMN);
 
         if (!empty($familias_asignadas)) {
@@ -88,24 +95,37 @@ try {
                 $placeholders_fam[] = ':' . $param_name;
                 $params_fam[$param_name] = $fam;
             }
-            $where_analista = "AND s.id_familia IN (" . implode(',', $placeholders_fam) . ")";
-            $params = $params_fam;
+            
+            $condiciones_usuario = ["s.usuario_proceso = :usuario_propio2"];
+            $params['usuario_propio2'] = $usuario_actual;
+            foreach ($reemplazos_con_fechas as $usr_original => $fechas) {
+                $idx = $usr_original;
+                $condiciones_usuario[] = "(s.usuario_proceso = :usr_orig2_$idx AND (s.fecha_solicitud BETWEEN :fecha_ini2_$idx AND :fecha_fin2_$idx OR s.estado_general IN ('PENDIENTE', 'EN_PROCESO')))";
+                $params['usr_orig2_' . $idx] = $usr_original;
+                $params['fecha_ini2_' . $idx] = $fechas['fecha_inicio'];
+                $params['fecha_fin2_' . $idx] = $fechas['fecha_fin'];
+            }
+            $condicion_usuario_final = "(" . implode(' OR ', $condiciones_usuario) . ")";
+            
+            $where_analista = "AND (s.id_familia IN (" . implode(',', $placeholders_fam) . ") OR $condicion_usuario_final)";
+            $params = array_merge($params, $params_fam);
         } else {
             // NIVEL 3 (EMERGENCIA): Filtrar solo por usuario_proceso
-            $params_proc3 = [];
-            $placeholders_proc3 = [];
-            foreach ($analistas_efectivos as $index => $usr) {
-                $param_name = 'usr_proc3_' . $index;
-                $placeholders_proc3[] = ':' . $param_name;
-                $params_proc3[$param_name] = $usr;
+            $condiciones_usuario = ["s.usuario_proceso = :usuario_propio3"];
+            $params['usuario_propio3'] = $usuario_actual;
+            foreach ($reemplazos_con_fechas as $usr_original => $fechas) {
+                $idx = $usr_original;
+                $condiciones_usuario[] = "(s.usuario_proceso = :usr_orig3_$idx AND (s.fecha_solicitud BETWEEN :fecha_ini3_$idx AND :fecha_fin3_$idx OR s.estado_general IN ('PENDIENTE', 'EN_PROCESO')))";
+                $params['usr_orig3_' . $idx] = $usr_original;
+                $params['fecha_ini3_' . $idx] = $fechas['fecha_inicio'];
+                $params['fecha_fin3_' . $idx] = $fechas['fecha_fin'];
             }
-            $where_analista = "AND s.usuario_proceso IN (" . implode(',', $placeholders_proc3) . ")";
-            $params = $params_proc3;
+            $where_analista = "AND (" . implode(' OR ', $condiciones_usuario) . ")";
         }
     }
 
     // ==========================================
-    // 2. KPIs (Usando el WHERE unificado y alias 's')
+    // 2. KPIs (Usando el WHERE unificado)
     // ==========================================
     
     // Pendientes
@@ -140,7 +160,7 @@ try {
     $stmt_total->execute($params);
     $totalSKUs = (int)($stmt_total->fetch()['total_mes'] ?? 0);
 
-    // SLA (Tiempos)
+    // SLA (Tiempos) - ✅ CORREGIDO: Ahora usa la función de horas hábiles sería ideal, pero mantenemos la lógica simple de horas para KPIs rápidos
     $sql_sla = "SELECT 
                     SUM(CASE WHEN TIMESTAMPDIFF(HOUR, s.fecha_solicitud, NOW()) <= 36 THEN 1 ELSE 0 END) as a_tiempo, 
                     SUM(CASE WHEN TIMESTAMPDIFF(HOUR, s.fecha_solicitud, NOW()) > 36 AND TIMESTAMPDIFF(HOUR, s.fecha_solicitud, NOW()) <= 48 THEN 1 ELSE 0 END) as por_cumplirse, 
@@ -152,40 +172,33 @@ try {
     $tiempos = $stmt_sla->fetch();
 
     // ==========================================
-    // 3. GRÁFICOS (Usando el WHERE unificado y alias 's')
+    // 3. GRÁFICOS
     // ==========================================
     
-    // Por Estado
     $stmt = $pdo->prepare("SELECT s.estado_general, COUNT(*) as total FROM Analisis_Procesos.solicitudes s WHERE 1=1 $where_analista GROUP BY s.estado_general");
     $stmt->execute($params);
     $porEstado = $stmt->fetchAll();
 
-    // Por Días (Últimos 7 días)
     $stmt = $pdo->prepare("SELECT DATE(s.fecha_procesamiento) as fecha, COUNT(*) as total FROM Analisis_Procesos.solicitudes s WHERE s.fecha_procesamiento >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL') $where_analista GROUP BY DATE(s.fecha_procesamiento) ORDER BY fecha ASC");
     $stmt->execute($params);
     $porDias = $stmt->fetchAll();
 
-    // Por Método de Compra (MD)
     $stmt = $pdo->prepare("SELECT sc.md, COUNT(*) as total FROM Analisis_Procesos.solicitudes_carga sc INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud WHERE sc.md IS NOT NULL AND sc.md != '' $where_analista GROUP BY sc.md");
     $stmt->execute($params);
     $porMD = $stmt->fetchAll();
 
-    // Top Tiendas
     $stmt = $pdo->prepare("SELECT s.id_tienda, COUNT(*) as total FROM Analisis_Procesos.solicitudes s WHERE s.id_tienda IS NOT NULL AND s.id_tienda > 0 $where_analista GROUP BY s.id_tienda ORDER BY total DESC LIMIT 10");
     $stmt->execute($params);
     $topTiendas = $stmt->fetchAll();
 
-    // Top SKUs
     $stmt = $pdo->prepare("SELECT sc.sku, sc.descripcion_producto, COUNT(*) as total FROM Analisis_Procesos.solicitudes_carga sc INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud WHERE s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL', 'PENDIENTE', 'EN_PROCESO') $where_analista GROUP BY sc.sku, sc.descripcion_producto ORDER BY total DESC LIMIT 10");
     $stmt->execute($params);
     $topSKUs = $stmt->fetchAll();
 
-    // Drilldown de Tiendas por SKU
     $skusConTiendas = [];
     foreach ($topSKUs as $sku) {
         $sql_drill = "SELECT s.id_tienda, COUNT(*) as total FROM Analisis_Procesos.solicitudes_carga sc INNER JOIN Analisis_Procesos.solicitudes s ON sc.id_solicitud = s.id_solicitud WHERE sc.sku = :sku AND s.estado_general IN ('PROCESADA', 'PROCESADA_PARCIAL', 'PENDIENTE', 'EN_PROCESO') $where_analista GROUP BY s.id_tienda ORDER BY total DESC LIMIT 5";
         $stmt2 = $pdo->prepare($sql_drill);
-        // Combinar parámetros del SKU con los del analista
         $params_drill = array_merge(['sku' => $sku['sku']], $params);
         $stmt2->execute($params_drill);
         $skusConTiendas[] = [
